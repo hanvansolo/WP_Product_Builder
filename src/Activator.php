@@ -10,7 +10,6 @@ declare(strict_types=1);
 namespace WPProductBuilder;
 
 use WPProductBuilder\Database\Migrator;
-use WPProductBuilder\Security\CapabilityManager;
 
 /**
  * Handles plugin activation
