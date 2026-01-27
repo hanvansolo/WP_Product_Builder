@@ -9,7 +9,7 @@ declare(strict_types=1);
 
 namespace WPProductBuilder\API\Endpoints;
 
-use WPProductBuilder\API\AmazonClient;
+use WPProductBuilder\Services\ProductDataService;
 use WP_REST_Controller;
 use WP_REST_Server;
 use WP_REST_Request;
@@ -122,21 +122,21 @@ class ProductSearchEndpoint extends WP_REST_Controller {
         $query = $request->get_param('q');
         $count = $request->get_param('count') ?? 10;
 
-        $client = new AmazonClient();
-        $result = $client->searchProducts($query, ['item_count' => $count]);
+        $service = new ProductDataService();
+        $products = $service->searchProducts($query, $count);
 
-        if (!$result['success']) {
+        if (empty($products)) {
             return new WP_Error(
                 'search_failed',
-                $result['error'] ?? __('Search failed.', 'wp-product-builder'),
+                __('Search failed. Please try again.', 'wp-product-builder'),
                 ['status' => 500]
             );
         }
 
         return new WP_REST_Response([
             'success' => true,
-            'products' => $result['products'],
-            'total' => $result['total_results'] ?? count($result['products']),
+            'products' => $products,
+            'total' => count($products),
         ], 200);
     }
 
@@ -149,13 +149,13 @@ class ProductSearchEndpoint extends WP_REST_Controller {
     public function get_product(WP_REST_Request $request): WP_REST_Response|WP_Error {
         $asin = strtoupper($request->get_param('asin'));
 
-        $client = new AmazonClient();
-        $product = $client->getProduct($asin);
+        $service = new ProductDataService();
+        $product = $service->getProduct($asin);
 
         if (!$product) {
             return new WP_Error(
                 'not_found',
-                __('Product not found.', 'wp-product-builder'),
+                __('Failed to fetch product.', 'wp-product-builder'),
                 ['status' => 404]
             );
         }
@@ -185,12 +185,12 @@ class ProductSearchEndpoint extends WP_REST_Controller {
             );
         }
 
-        $client = new AmazonClient();
-        $result = $client->getMultipleProducts($asins);
+        $service = new ProductDataService();
+        $products = $service->getMultipleProducts($asins);
 
         return new WP_REST_Response([
             'success' => true,
-            'products' => $result['products'] ?? [],
+            'products' => $products,
         ], 200);
     }
 }
