@@ -3,7 +3,7 @@
  * Plugin Name: WP Product Builder
  * Plugin URI: https://github.com/hanvansolo/WP_Product_Builder
  * Description: AI-powered affiliate content generator using Claude API and Amazon PA-API. Create product reviews, roundups, comparisons, and more with a click.
- * Version: 1.1.5
+ * Version: 1.1.6
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Ed Deyzel
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin version
-define('WPB_VERSION', '1.1.5');
+define('WPB_VERSION', '1.1.6');
 
 // Plugin paths
 define('WPB_PLUGIN_FILE', __FILE__);

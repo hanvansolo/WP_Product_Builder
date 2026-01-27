@@ -12,7 +12,7 @@ declare(strict_types=1);
 namespace WPProductBuilder\Content;
 
 use WPProductBuilder\API\ClaudeClient;
-use WPProductBuilder\API\AmazonClient;
+use WPProductBuilder\Services\ProductDataService;
 use WPProductBuilder\Database\Repositories\ContentRepository;
 use WPProductBuilder\Content\Types\ProductReview;
 use WPProductBuilder\Content\Types\ProductsRoundup;
@@ -31,9 +31,9 @@ class ContentGenerator {
     private ClaudeClient $claude;
 
     /**
-     * Amazon API client
+     * Product data service
      */
-    private AmazonClient $amazon;
+    private ProductDataService $productService;
 
     /**
      * Content repository
@@ -50,7 +50,7 @@ class ContentGenerator {
      */
     public function __construct() {
         $this->claude = new ClaudeClient();
-        $this->amazon = new AmazonClient();
+        $this->productService = new ProductDataService();
         $this->contentRepo = new ContentRepository();
 
         $this->contentTypes = [
@@ -81,17 +81,17 @@ class ContentGenerator {
 
         $contentType = $this->contentTypes[$type];
 
-        // Fetch product data
-        $productResult = $this->amazon->getMultipleProducts($productAsins);
+        // Fetch product data using service (with scraper fallback)
+        $products = $this->productService->getMultipleProducts($productAsins);
 
-        if (empty($productResult['products'])) {
+        if (empty($products)) {
             return [
                 'success' => false,
-                'error' => __('Could not fetch product data from Amazon.', 'wp-product-builder'),
+                'error' => __('Could not fetch product data. Please try again.', 'wp-product-builder'),
             ];
         }
 
-        $products = array_values($productResult['products']);
+        $products = array_values($products);
 
         // Build prompt
         $prompt = $contentType->buildPrompt($products, $options);
@@ -283,7 +283,7 @@ class ContentGenerator {
      * @return string HTML
      */
     private function renderBuyButton(array $product): string {
-        $url = $product['affiliate_url'] ?? $this->amazon->generateAffiliateLink($product['asin']);
+        $url = $product['affiliate_url'] ?? $this->buildAffiliateUrl($product['asin']);
         return sprintf(
             '<a href="%s" class="wpb-buy-button" rel="nofollow sponsored" target="_blank">%s</a>',
             esc_url($url),
@@ -372,5 +372,34 @@ class ContentGenerator {
             ];
         }
         return $types;
+    }
+
+    /**
+     * Build Amazon affiliate URL
+     *
+     * @param string $asin Product ASIN
+     * @return string Affiliate URL
+     */
+    private function buildAffiliateUrl(string $asin): string {
+        $settings = get_option('wpb_settings', []);
+        $credentials = get_option('wpb_credentials_encrypted', []);
+
+        $marketplace = $settings['amazon_marketplace'] ?? 'US';
+        $partnerTag = $credentials['amazon_partner_tag'] ?? '';
+
+        $domains = [
+            'US' => 'amazon.com', 'UK' => 'amazon.co.uk', 'DE' => 'amazon.de',
+            'FR' => 'amazon.fr', 'CA' => 'amazon.ca', 'JP' => 'amazon.co.jp',
+            'IT' => 'amazon.it', 'ES' => 'amazon.es', 'AU' => 'amazon.com.au',
+        ];
+
+        $domain = $domains[$marketplace] ?? 'amazon.com';
+        $url = "https://www.{$domain}/dp/{$asin}";
+
+        if (!empty($partnerTag)) {
+            $url .= "?tag={$partnerTag}";
+        }
+
+        return $url;
     }
 }
