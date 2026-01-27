@@ -67,15 +67,29 @@
             $button.prop('disabled', true).text(wpbAdmin.i18n.testing_connection);
             $result.removeClass('success error').hide();
 
+            // Get API key from form if available
+            var data = { api: api };
+            if (api === 'claude') {
+                var apiKey = $('#claude_api_key').val();
+                if (apiKey) {
+                    data.api_key = apiKey;
+                }
+            } else if (api === 'amazon') {
+                var accessKey = $('#amazon_access_key').val();
+                var secretKey = $('#amazon_secret_key').val();
+                var partnerTag = $('#amazon_partner_tag').val();
+                if (accessKey) data.access_key = accessKey;
+                if (secretKey) data.secret_key = secretKey;
+                if (partnerTag) data.partner_tag = partnerTag;
+            }
+
             $.ajax({
                 url: wpbAdmin.apiUrl + '/test-connection',
                 method: 'POST',
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                 },
-                data: {
-                    api: api
-                },
+                data: data,
                 success: function(response) {
                     $result.addClass('success')
                            .text(wpbAdmin.i18n.connection_success)

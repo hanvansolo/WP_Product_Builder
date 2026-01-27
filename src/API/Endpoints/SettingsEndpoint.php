@@ -223,12 +223,16 @@ class SettingsEndpoint extends WP_REST_Controller {
      */
     public function test_connection(WP_REST_Request $request): WP_REST_Response|WP_Error {
         $api = $request->get_param('api');
+        $api_key = $request->get_param('api_key');
 
         if ($api === 'claude') {
-            $client = new ClaudeClient();
+            $client = new ClaudeClient($api_key ?: null);
             $result = $client->testConnection();
         } elseif ($api === 'amazon') {
-            $client = new AmazonClient();
+            $access_key = $request->get_param('access_key');
+            $secret_key = $request->get_param('secret_key');
+            $partner_tag = $request->get_param('partner_tag');
+            $client = new AmazonClient($access_key ?: null, $secret_key ?: null, $partner_tag ?: null);
             $result = $client->testConnection();
         } else {
             return new WP_Error(

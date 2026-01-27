@@ -93,21 +93,35 @@ class AmazonClient {
 
     /**
      * Constructor
+     *
+     * @param string|null $accessKey Optional access key (for testing before save)
+     * @param string|null $secretKey Optional secret key (for testing before save)
+     * @param string|null $partnerTag Optional partner tag (for testing before save)
      */
-    public function __construct() {
-        $encryption = new EncryptionService();
-        $credentials = get_option('wpb_credentials_encrypted', []);
+    public function __construct(?string $accessKey = null, ?string $secretKey = null, ?string $partnerTag = null) {
         $settings = get_option('wpb_settings', []);
 
-        $this->accessKey = !empty($credentials['amazon_access_key'])
-            ? $encryption->decrypt($credentials['amazon_access_key'])
-            : '';
+        if ($accessKey !== null || $secretKey !== null) {
+            // Use provided credentials (for testing)
+            $this->accessKey = $accessKey ?? '';
+            $this->secretKey = $secretKey ?? '';
+            $this->partnerTag = $partnerTag ?? '';
+        } else {
+            // Load from saved credentials
+            $encryption = new EncryptionService();
+            $credentials = get_option('wpb_credentials_encrypted', []);
 
-        $this->secretKey = !empty($credentials['amazon_secret_key'])
-            ? $encryption->decrypt($credentials['amazon_secret_key'])
-            : '';
+            $this->accessKey = !empty($credentials['amazon_access_key'])
+                ? $encryption->decrypt($credentials['amazon_access_key'])
+                : '';
 
-        $this->partnerTag = $credentials['amazon_partner_tag'] ?? '';
+            $this->secretKey = !empty($credentials['amazon_secret_key'])
+                ? $encryption->decrypt($credentials['amazon_secret_key'])
+                : '';
+
+            $this->partnerTag = $credentials['amazon_partner_tag'] ?? '';
+        }
+
         $this->marketplace = $settings['amazon_marketplace'] ?? 'US';
         $this->cacheDuration = ($settings['cache_duration_hours'] ?? 24) * HOUR_IN_SECONDS;
 

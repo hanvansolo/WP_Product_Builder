@@ -45,15 +45,23 @@ class ClaudeClient {
 
     /**
      * Constructor
+     *
+     * @param string|null $apiKey Optional API key (for testing before save)
      */
-    public function __construct() {
-        $encryption = new EncryptionService();
-        $credentials = get_option('wpb_credentials_encrypted', []);
+    public function __construct(?string $apiKey = null) {
         $settings = get_option('wpb_settings', []);
 
-        $this->apiKey = !empty($credentials['claude_api_key'])
-            ? $encryption->decrypt($credentials['claude_api_key'])
-            : '';
+        if ($apiKey !== null) {
+            // Use provided API key (for testing)
+            $this->apiKey = $apiKey;
+        } else {
+            // Load from saved credentials
+            $encryption = new EncryptionService();
+            $credentials = get_option('wpb_credentials_encrypted', []);
+            $this->apiKey = !empty($credentials['claude_api_key'])
+                ? $encryption->decrypt($credentials['claude_api_key'])
+                : '';
+        }
 
         $this->model = $settings['claude_model'] ?? 'claude-sonnet-4-20250514';
     }
