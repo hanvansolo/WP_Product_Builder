@@ -17,13 +17,21 @@ $has_amazon_keys = !empty($credentials['amazon_access_key']) && !empty($credenti
 <div class="wrap wpb-admin-wrap">
     <h1><?php esc_html_e('WP Product Builder', 'wp-product-builder'); ?></h1>
 
-    <?php if (!$has_claude_key || !$has_amazon_keys): ?>
-    <div class="notice notice-warning">
+    <?php if (!$has_claude_key): ?>
+    <div class="notice notice-error">
         <p>
-            <?php esc_html_e('Please configure your API keys to get started.', 'wp-product-builder'); ?>
+            <strong><?php esc_html_e('Claude API key required.', 'wp-product-builder'); ?></strong>
+            <?php esc_html_e('Please configure your Claude API key to generate content.', 'wp-product-builder'); ?>
             <a href="<?php echo esc_url(admin_url('admin.php?page=wp-product-builder-settings')); ?>">
                 <?php esc_html_e('Go to Settings', 'wp-product-builder'); ?>
             </a>
+        </p>
+    </div>
+    <?php elseif (!$has_amazon_keys): ?>
+    <div class="notice notice-info">
+        <p>
+            <strong><?php esc_html_e('Amazon PA-API not configured (optional).', 'wp-product-builder'); ?></strong>
+            <?php esc_html_e('Product data will be fetched using the scraper. Configure PA-API once you qualify for better reliability.', 'wp-product-builder'); ?>
         </p>
     </div>
     <?php endif; ?>

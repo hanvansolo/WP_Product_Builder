@@ -10,7 +10,8 @@ if (!defined('ABSPATH')) {
 }
 
 $credentials = get_option('wpb_credentials_encrypted', []);
-$has_api_keys = !empty($credentials['claude_api_key']) && !empty($credentials['amazon_access_key']);
+// Only require Claude API key - Amazon PA-API is optional (scraper fallback available)
+$has_api_keys = !empty($credentials['claude_api_key']);
 ?>
 <div class="wrap wpb-admin-wrap">
     <h1><?php esc_html_e('Generate Content', 'wp-product-builder'); ?></h1>
