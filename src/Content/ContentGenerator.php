@@ -1,0 +1,376 @@
+<?php
+/**
+ * Content Generator
+ *
+ * Main orchestrator for content generation
+ *
+ * @package WPProductBuilder
+ */
+
+declare(strict_types=1);
+
+namespace WPProductBuilder\Content;
+
+use WPProductBuilder\API\ClaudeClient;
+use WPProductBuilder\API\AmazonClient;
+use WPProductBuilder\Database\Repositories\ContentRepository;
+use WPProductBuilder\Content\Types\ProductReview;
+use WPProductBuilder\Content\Types\ProductsRoundup;
+use WPProductBuilder\Content\Types\ProductsComparison;
+use WPProductBuilder\Content\Types\Listicle;
+use WPProductBuilder\Content\Types\Deals;
+use WP_Error;
+
+/**
+ * Orchestrates content generation using AI and product data
+ */
+class ContentGenerator {
+    /**
+     * Claude API client
+     */
+    private ClaudeClient $claude;
+
+    /**
+     * Amazon API client
+     */
+    private AmazonClient $amazon;
+
+    /**
+     * Content repository
+     */
+    private ContentRepository $contentRepo;
+
+    /**
+     * Available content types
+     */
+    private array $contentTypes;
+
+    /**
+     * Constructor
+     */
+    public function __construct() {
+        $this->claude = new ClaudeClient();
+        $this->amazon = new AmazonClient();
+        $this->contentRepo = new ContentRepository();
+
+        $this->contentTypes = [
+            'product_review' => new ProductReview(),
+            'products_roundup' => new ProductsRoundup(),
+            'products_comparison' => new ProductsComparison(),
+            'listicle' => new Listicle(),
+            'deals' => new Deals(),
+        ];
+    }
+
+    /**
+     * Generate content
+     *
+     * @param string $type Content type
+     * @param array $productAsins Array of product ASINs
+     * @param array $options Generation options
+     * @return array Result with content and metadata
+     */
+    public function generate(string $type, array $productAsins, array $options = []): array {
+        // Validate content type
+        if (!isset($this->contentTypes[$type])) {
+            return [
+                'success' => false,
+                'error' => __('Invalid content type.', 'wp-product-builder'),
+            ];
+        }
+
+        $contentType = $this->contentTypes[$type];
+
+        // Fetch product data
+        $productResult = $this->amazon->getMultipleProducts($productAsins);
+
+        if (empty($productResult['products'])) {
+            return [
+                'success' => false,
+                'error' => __('Could not fetch product data from Amazon.', 'wp-product-builder'),
+            ];
+        }
+
+        $products = array_values($productResult['products']);
+
+        // Build prompt
+        $prompt = $contentType->buildPrompt($products, $options);
+
+        // Get generation options
+        $claudeOptions = [
+            'max_tokens' => $this->getMaxTokens($type, $options),
+            'temperature' => $options['temperature'] ?? 0.7,
+        ];
+
+        // Generate with Claude
+        $result = $this->claude->generateContent($prompt, $claudeOptions);
+
+        if (!$result['success']) {
+            return [
+                'success' => false,
+                'error' => $result['error'] ?? __('Content generation failed.', 'wp-product-builder'),
+            ];
+        }
+
+        // Process and format content
+        $content = $this->processContent($result['content'], $products);
+
+        // Generate title
+        $title = $options['title'] ?? $contentType->generateTitle($products, $options);
+
+        // Save to history
+        $historyId = $this->contentRepo->save([
+            'content_type' => $type,
+            'title' => $title,
+            'prompt_used' => $prompt,
+            'products_json' => json_encode($products),
+            'generated_content' => $content,
+            'tokens_used' => ($result['usage']['input_tokens'] ?? 0) + ($result['usage']['output_tokens'] ?? 0),
+            'model_used' => $result['model'] ?? 'unknown',
+        ]);
+
+        return [
+            'success' => true,
+            'content' => $content,
+            'title' => $title,
+            'products' => $products,
+            'history_id' => $historyId,
+            'usage' => $result['usage'] ?? null,
+        ];
+    }
+
+    /**
+     * Create WordPress post from history
+     *
+     * @param int $historyId History ID
+     * @param array $postOptions Post options
+     * @return int|WP_Error Post ID or error
+     */
+    public function createPost(int $historyId, array $postOptions = []): int|WP_Error {
+        $history = $this->contentRepo->get($historyId);
+
+        if (!$history) {
+            return new WP_Error('not_found', __('Content history not found.', 'wp-product-builder'));
+        }
+
+        $settings = get_option('wpb_settings', []);
+
+        // Prepare post data
+        $postData = [
+            'post_title' => $history['title'],
+            'post_content' => $history['generated_content'],
+            'post_status' => $postOptions['status'] ?? ($settings['default_post_status'] ?? 'draft'),
+            'post_author' => $postOptions['author'] ?? get_current_user_id(),
+            'post_type' => 'post',
+        ];
+
+        if (!empty($postOptions['categories'])) {
+            $postData['post_category'] = $postOptions['categories'];
+        }
+
+        // Insert post
+        $postId = wp_insert_post($postData);
+
+        if (is_wp_error($postId)) {
+            return $postId;
+        }
+
+        // Save post meta
+        update_post_meta($postId, '_wpb_content_type', $history['content_type']);
+        update_post_meta($postId, '_wpb_products', json_decode($history['products_json'], true));
+        update_post_meta($postId, '_wpb_generation_id', $historyId);
+        update_post_meta($postId, '_wpb_last_price_check', current_time('timestamp'));
+
+        // Add affiliate disclosure if enabled
+        if (!empty($settings['affiliate_disclosure'])) {
+            $disclosure = '<p class="wpb-affiliate-disclosure"><em>' . esc_html($settings['affiliate_disclosure']) . '</em></p>';
+            $updated_content = $disclosure . "\n\n" . $history['generated_content'];
+            wp_update_post([
+                'ID' => $postId,
+                'post_content' => $updated_content,
+            ]);
+        }
+
+        // Update history with post ID
+        $this->contentRepo->update($historyId, [
+            'post_id' => $postId,
+            'status' => 'published',
+        ]);
+
+        return $postId;
+    }
+
+    /**
+     * Process content - replace placeholders and format
+     *
+     * @param string $content Raw content
+     * @param array $products Products data
+     * @return string Processed content
+     */
+    private function processContent(string $content, array $products): string {
+        // Convert markdown to HTML if needed
+        if (!str_contains($content, '<h2>') && !str_contains($content, '<p>')) {
+            $content = $this->markdownToHtml($content);
+        }
+
+        // Add product boxes
+        foreach ($products as $index => $product) {
+            $placeholder = "[PRODUCT_BOX_{$index}]";
+            if (str_contains($content, $placeholder)) {
+                $productBox = $this->renderProductBox($product);
+                $content = str_replace($placeholder, $productBox, $content);
+            }
+
+            // Replace price placeholders
+            $pricePlaceholder = "[PRICE_{$index}]";
+            $content = str_replace($pricePlaceholder, $product['price'] ?? 'Check price', $content);
+        }
+
+        // Add buy buttons
+        $content = preg_replace_callback(
+            '/\[BUY_BUTTON_(\d+)\]/',
+            function($matches) use ($products) {
+                $index = (int) $matches[1];
+                if (isset($products[$index])) {
+                    return $this->renderBuyButton($products[$index]);
+                }
+                return '';
+            },
+            $content
+        );
+
+        return $content;
+    }
+
+    /**
+     * Render product box HTML
+     *
+     * @param array $product Product data
+     * @return string HTML
+     */
+    private function renderProductBox(array $product): string {
+        $html = '<div class="wpb-product-box">';
+        $html .= '<div class="wpb-product-image">';
+        if (!empty($product['image_url'])) {
+            $html .= '<img src="' . esc_url($product['image_url']) . '" alt="' . esc_attr($product['title']) . '">';
+        }
+        $html .= '</div>';
+        $html .= '<div class="wpb-product-details">';
+        $html .= '<h3 class="wpb-product-title">' . esc_html($product['title']) . '</h3>';
+
+        if (!empty($product['price'])) {
+            $html .= '<p class="wpb-product-price">' . esc_html($product['price']) . '</p>';
+        }
+
+        if (!empty($product['features'])) {
+            $html .= '<ul class="wpb-product-features">';
+            foreach (array_slice($product['features'], 0, 3) as $feature) {
+                $html .= '<li>' . esc_html($feature) . '</li>';
+            }
+            $html .= '</ul>';
+        }
+
+        $html .= $this->renderBuyButton($product);
+        $html .= '</div></div>';
+
+        return $html;
+    }
+
+    /**
+     * Render buy button
+     *
+     * @param array $product Product data
+     * @return string HTML
+     */
+    private function renderBuyButton(array $product): string {
+        $url = $product['affiliate_url'] ?? $this->amazon->generateAffiliateLink($product['asin']);
+        return sprintf(
+            '<a href="%s" class="wpb-buy-button" rel="nofollow sponsored" target="_blank">%s</a>',
+            esc_url($url),
+            esc_html__('Check Price on Amazon', 'wp-product-builder')
+        );
+    }
+
+    /**
+     * Basic markdown to HTML conversion
+     *
+     * @param string $markdown Markdown text
+     * @return string HTML
+     */
+    private function markdownToHtml(string $markdown): string {
+        // Headers
+        $markdown = preg_replace('/^### (.+)$/m', '<h3>$1</h3>', $markdown);
+        $markdown = preg_replace('/^## (.+)$/m', '<h2>$1</h2>', $markdown);
+        $markdown = preg_replace('/^# (.+)$/m', '<h1>$1</h1>', $markdown);
+
+        // Bold and italic
+        $markdown = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $markdown);
+        $markdown = preg_replace('/\*(.+?)\*/', '<em>$1</em>', $markdown);
+
+        // Lists
+        $markdown = preg_replace('/^- (.+)$/m', '<li>$1</li>', $markdown);
+        $markdown = preg_replace('/(<li>.*<\/li>\n?)+/', '<ul>$0</ul>', $markdown);
+
+        // Paragraphs
+        $markdown = preg_replace('/^(?!<[hul])(.*[^\n])$/m', '<p>$1</p>', $markdown);
+
+        // Clean up
+        $markdown = preg_replace('/\n+/', "\n", $markdown);
+
+        return $markdown;
+    }
+
+    /**
+     * Get max tokens based on content type and length
+     *
+     * @param string $type Content type
+     * @param array $options Options
+     * @return int Max tokens
+     */
+    private function getMaxTokens(string $type, array $options): int {
+        $length = $options['length'] ?? 'medium';
+
+        $base = match($length) {
+            'short' => 2048,
+            'medium' => 4096,
+            'long' => 8192,
+            default => 4096,
+        };
+
+        // Adjust for content types that need more tokens
+        $multiplier = match($type) {
+            'products_comparison', 'products_roundup' => 1.5,
+            'listicle' => 1.3,
+            default => 1.0,
+        };
+
+        return min((int) ($base * $multiplier), 16384);
+    }
+
+    /**
+     * Get content type instance
+     *
+     * @param string $type Content type key
+     * @return ContentTypeInterface|null
+     */
+    public function getContentType(string $type): ?ContentTypeInterface {
+        return $this->contentTypes[$type] ?? null;
+    }
+
+    /**
+     * Get all content types
+     *
+     * @return array
+     */
+    public function getAllContentTypes(): array {
+        $types = [];
+        foreach ($this->contentTypes as $key => $type) {
+            $types[$key] = [
+                'type' => $type->getType(),
+                'name' => $type->getName(),
+                'description' => $type->getDescription(),
+            ];
+        }
+        return $types;
+    }
+}

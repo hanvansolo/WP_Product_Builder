@@ -1,0 +1,196 @@
+/**
+ * WP Product Builder - Frontend Styles
+ */
+
+/* Product Box */
+.wpb-product-box {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin: 20px 0;
+    background: #fff;
+}
+
+.wpb-product-box .wpb-product-image {
+    flex-shrink: 0;
+    width: 200px;
+}
+
+.wpb-product-box .wpb-product-image img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.wpb-product-box .wpb-product-details {
+    flex: 1;
+}
+
+.wpb-product-box .wpb-product-title {
+    margin: 0 0 10px;
+    font-size: 1.2em;
+}
+
+.wpb-product-box .wpb-product-price {
+    font-size: 1.4em;
+    font-weight: bold;
+    color: #B12704;
+    margin: 10px 0;
+}
+
+.wpb-product-box .wpb-product-features {
+    margin: 15px 0;
+    padding-left: 20px;
+}
+
+.wpb-product-box .wpb-product-features li {
+    margin-bottom: 5px;
+}
+
+/* Buy Button */
+.wpb-buy-button {
+    display: inline-block;
+    padding: 12px 24px;
+    background: linear-gradient(to bottom, #f7dfa5, #f0c14b);
+    border: 1px solid #a88734;
+    border-radius: 4px;
+    color: #111;
+    text-decoration: none;
+    font-weight: 500;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.wpb-buy-button:hover {
+    background: linear-gradient(to bottom, #f5d78e, #eeb933);
+    text-decoration: none;
+    color: #111;
+}
+
+/* Affiliate Disclosure */
+.wpb-affiliate-disclosure {
+    background: #f9f9f9;
+    padding: 15px;
+    border-left: 4px solid #0073aa;
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    color: #666;
+}
+
+/* Comparison Table */
+.wpb-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+.wpb-comparison-table th,
+.wpb-comparison-table td {
+    padding: 12px;
+    text-align: left;
+    border: 1px solid #ddd;
+}
+
+.wpb-comparison-table th {
+    background: #f5f5f5;
+    font-weight: 600;
+}
+
+.wpb-comparison-table tr:nth-child(even) {
+    background: #fafafa;
+}
+
+/* Pros and Cons */
+.wpb-pros-cons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.wpb-pros,
+.wpb-cons {
+    padding: 15px;
+    border-radius: 8px;
+}
+
+.wpb-pros {
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+}
+
+.wpb-cons {
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+}
+
+.wpb-pros h4,
+.wpb-cons h4 {
+    margin-top: 0;
+}
+
+.wpb-pros ul,
+.wpb-cons ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .wpb-product-box {
+        flex-direction: column;
+    }
+
+    .wpb-product-box .wpb-product-image {
+        width: 100%;
+        text-align: center;
+    }
+
+    .wpb-product-box .wpb-product-image img {
+        max-width: 200px;
+    }
+
+    .wpb-pros-cons {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Rating Stars */
+.wpb-rating {
+    color: #f90;
+}
+
+.wpb-rating .star-filled::before {
+    content: '★';
+}
+
+.wpb-rating .star-empty::before {
+    content: '☆';
+}
+
+/* Deal Banner */
+.wpb-deal-banner {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.wpb-deal-banner h3 {
+    margin: 0 0 10px;
+    color: #fff;
+}
+
+.wpb-deal-banner .wpb-deal-price {
+    font-size: 2em;
+    font-weight: bold;
+}
+
+.wpb-deal-banner .wpb-buy-button {
+    margin-top: 15px;
+}
