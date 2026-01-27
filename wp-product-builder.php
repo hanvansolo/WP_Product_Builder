@@ -1,17 +1,18 @@
 <?php
 /**
  * Plugin Name: WP Product Builder
- * Plugin URI: https://example.com/wp-product-builder
+ * Plugin URI: https://github.com/hanvansolo/WP_Product_Builder
  * Description: AI-powered affiliate content generator using Claude API and Amazon PA-API. Create product reviews, roundups, comparisons, and more with a click.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires at least: 6.0
  * Requires PHP: 8.1
- * Author: Your Name
- * Author URI: https://example.com
+ * Author: Ed Deyzel
+ * Author URI: https://github.com/hanvansolo
  * License: GPL v2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: wp-product-builder
  * Domain Path: /languages
+ * Update URI: https://github.com/hanvansolo/WP_Product_Builder
  */
 
 // Prevent direct access
@@ -20,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin version
-define('WPB_VERSION', '1.0.0');
+define('WPB_VERSION', '1.1.0');
 
 // Plugin paths
 define('WPB_PLUGIN_FILE', __FILE__);
@@ -91,22 +92,29 @@ function wpb_check_requirements(): bool {
 }
 
 /**
- * Load Composer autoloader
+ * Load autoloader (Composer or fallback)
  */
 function wpb_load_autoloader(): bool {
-    $autoloader = WPB_PLUGIN_DIR . 'vendor/autoload.php';
-
-    if (!file_exists($autoloader)) {
-        add_action('admin_notices', function() {
-            echo '<div class="notice notice-error"><p>';
-            echo esc_html__('WP Product Builder: Please run "composer install" in the plugin directory to install dependencies.', 'wp-product-builder');
-            echo '</p></div>';
-        });
-        return false;
+    // Try Composer autoloader first
+    $composer_autoloader = WPB_PLUGIN_DIR . 'vendor/autoload.php';
+    if (file_exists($composer_autoloader)) {
+        require_once $composer_autoloader;
+        return true;
     }
 
-    require_once $autoloader;
-    return true;
+    // Fall back to simple PSR-4 autoloader
+    $fallback_autoloader = WPB_PLUGIN_DIR . 'autoload.php';
+    if (file_exists($fallback_autoloader)) {
+        require_once $fallback_autoloader;
+        return true;
+    }
+
+    add_action('admin_notices', function() {
+        echo '<div class="notice notice-error"><p>';
+        echo esc_html__('WP Product Builder: Autoloader not found.', 'wp-product-builder');
+        echo '</p></div>';
+    });
+    return false;
 }
 
 /**
@@ -148,7 +156,7 @@ register_activation_hook(__FILE__, function() {
     if (!wpb_load_autoloader()) {
         deactivate_plugins(WPB_PLUGIN_BASENAME);
         wp_die(
-            esc_html__('WP Product Builder: Please run "composer install" first.', 'wp-product-builder'),
+            esc_html__('WP Product Builder: Autoloader not found.', 'wp-product-builder'),
             esc_html__('Plugin Activation Error', 'wp-product-builder'),
             ['back_link' => true]
         );

@@ -13,18 +13,11 @@ declare(strict_types=1);
 namespace WPProductBuilder\Scraper;
 
 use WPProductBuilder\Database\Repositories\ProductRepository;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
 
 /**
  * Scrapes Amazon product data without API
  */
 class AmazonScraper {
-    /**
-     * HTTP client
-     */
-    private Client $client;
-
     /**
      * Product repository
      */
@@ -85,13 +78,6 @@ class AmazonScraper {
         $this->marketplace = $settings['amazon_marketplace'] ?? 'US';
         $this->partnerTag = $credentials['amazon_partner_tag'] ?? '';
         $this->rateLimit = $settings['scraper_rate_limit'] ?? 3; // seconds between requests
-
-        $this->client = new Client([
-            'timeout' => 30,
-            'connect_timeout' => 10,
-            'verify' => true,
-            'cookies' => true,
-        ]);
 
         $this->productRepo = new ProductRepository();
     }
@@ -210,7 +196,7 @@ class AmazonScraper {
     }
 
     /**
-     * Fetch page content
+     * Fetch page content using WordPress HTTP API
      *
      * @param string $url URL to fetch
      * @return string|null HTML content or null
@@ -220,7 +206,6 @@ class AmazonScraper {
             'User-Agent' => $this->getRandomUserAgent(),
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language' => 'en-US,en;q=0.5',
-            'Accept-Encoding' => 'gzip, deflate, br',
             'DNT' => '1',
             'Connection' => 'keep-alive',
             'Upgrade-Insecure-Requests' => '1',
@@ -231,20 +216,26 @@ class AmazonScraper {
             'Cache-Control' => 'max-age=0',
         ];
 
-        // Add proxy if configured
-        $options = ['headers' => $headers];
-        $proxy = get_option('wpb_settings')['scraper_proxy'] ?? '';
-        if (!empty($proxy)) {
-            $options['proxy'] = $proxy;
-        }
+        $args = [
+            'timeout' => 30,
+            'headers' => $headers,
+            'sslverify' => true,
+        ];
 
-        try {
-            $response = $this->client->get($url, $options);
-            return $response->getBody()->getContents();
-        } catch (GuzzleException $e) {
-            error_log('WPB Fetch Error: ' . $e->getMessage());
+        $response = wp_remote_get($url, $args);
+
+        if (is_wp_error($response)) {
+            error_log('WPB Fetch Error: ' . $response->get_error_message());
             return null;
         }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        if ($status_code !== 200) {
+            error_log("WPB Fetch Error: HTTP {$status_code}");
+            return null;
+        }
+
+        return wp_remote_retrieve_body($response);
     }
 
     /**

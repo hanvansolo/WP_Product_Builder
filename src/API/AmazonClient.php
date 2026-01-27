@@ -13,8 +13,7 @@ namespace WPProductBuilder\API;
 
 use WPProductBuilder\Encryption\EncryptionService;
 use WPProductBuilder\Database\Repositories\ProductRepository;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
+use WP_Error;
 
 /**
  * Amazon PA-API client for product data
@@ -307,7 +306,7 @@ class AmazonClient {
     }
 
     /**
-     * Make API request
+     * Make API request using WordPress HTTP API
      *
      * @param string $operation API operation
      * @param array $payload Request payload
@@ -324,7 +323,7 @@ class AmazonClient {
         $timestamp = gmdate('Ymd\THis\Z');
         $date = gmdate('Ymd');
 
-        $payload = json_encode($payload);
+        $payloadJson = wp_json_encode($payload);
 
         // Create canonical request
         $canonicalHeaders = [
@@ -341,7 +340,7 @@ class AmazonClient {
             $canonicalHeaderString .= "{$key}:{$value}\n";
         }
 
-        $payloadHash = hash('sha256', $payload);
+        $payloadHash = hash('sha256', $payloadJson);
 
         $canonicalRequest = implode("\n", [
             'POST',
@@ -373,39 +372,48 @@ class AmazonClient {
         // Create authorization header
         $authHeader = "{$algorithm} Credential={$this->accessKey}/{$credentialScope}, SignedHeaders={$signedHeaders}, Signature={$signature}";
 
-        try {
-            $client = new Client([
-                'timeout' => 30,
-            ]);
+        // Make request using WordPress HTTP API
+        $url = "https://{$host}{$path}";
 
-            $response = $client->post("https://{$host}{$path}", [
-                'headers' => [
-                    'content-encoding' => 'amz-1.0',
-                    'content-type' => 'application/json; charset=utf-8',
-                    'host' => $host,
-                    'x-amz-date' => $timestamp,
-                    'x-amz-target' => $target,
-                    'Authorization' => $authHeader,
-                ],
-                'body' => $payload,
-            ]);
+        $response = wp_remote_post($url, [
+            'timeout' => 30,
+            'headers' => [
+                'content-encoding' => 'amz-1.0',
+                'content-type' => 'application/json; charset=utf-8',
+                'host' => $host,
+                'x-amz-date' => $timestamp,
+                'x-amz-target' => $target,
+                'Authorization' => $authHeader,
+            ],
+            'body' => $payloadJson,
+        ]);
 
-            $body = json_decode($response->getBody()->getContents(), true);
-
-            // Track API usage
-            $this->trackUsage($operation);
-
-            return [
-                'success' => true,
-                'data' => $body,
-            ];
-
-        } catch (GuzzleException $e) {
+        if (is_wp_error($response)) {
             return [
                 'success' => false,
-                'error' => $this->parseError($e),
+                'error' => $response->get_error_message(),
             ];
         }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+
+        if ($status_code >= 400) {
+            $error_message = $this->parseErrorResponse($decoded, $status_code);
+            return [
+                'success' => false,
+                'error' => $error_message,
+            ];
+        }
+
+        // Track API usage
+        $this->trackUsage($operation);
+
+        return [
+            'success' => true,
+            'data' => $decoded,
+        ];
     }
 
     /**
@@ -507,32 +515,29 @@ class AmazonClient {
     }
 
     /**
-     * Parse error from exception
+     * Parse error from API response
      *
-     * @param GuzzleException $e The exception
+     * @param array|null $response Decoded response body
+     * @param int $statusCode HTTP status code
      * @return string Error message
      */
-    private function parseError(GuzzleException $e): string {
-        if (method_exists($e, 'getResponse') && $e->getResponse()) {
-            $body = json_decode($e->getResponse()->getBody()->getContents(), true);
+    private function parseErrorResponse(?array $response, int $statusCode): string {
+        if (!empty($response['Errors'])) {
+            $error = $response['Errors'][0] ?? [];
+            $message = $error['Message'] ?? __('API request failed', 'wp-product-builder');
 
-            if (!empty($body['Errors'])) {
-                $error = $body['Errors'][0] ?? [];
-                return $error['Message'] ?? $e->getMessage();
+            if (str_contains($message, 'InvalidSignature')) {
+                return __('Invalid API signature. Please check your Amazon credentials.', 'wp-product-builder');
             }
+
+            if (str_contains($message, 'TooManyRequests') || $statusCode === 429) {
+                return __('Rate limit exceeded. Please try again later.', 'wp-product-builder');
+            }
+
+            return $message;
         }
 
-        $message = $e->getMessage();
-
-        if (str_contains($message, 'InvalidSignature')) {
-            return __('Invalid API signature. Please check your Amazon credentials.', 'wp-product-builder');
-        }
-
-        if (str_contains($message, 'TooManyRequests')) {
-            return __('Rate limit exceeded. Please try again later.', 'wp-product-builder');
-        }
-
-        return $message;
+        return sprintf(__('API request failed with status %d', 'wp-product-builder'), $statusCode);
     }
 
     /**

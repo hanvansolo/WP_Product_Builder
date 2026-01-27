@@ -12,8 +12,7 @@ declare(strict_types=1);
 namespace WPProductBuilder\API;
 
 use WPProductBuilder\Encryption\EncryptionService;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\GuzzleException;
+use WP_Error;
 
 /**
  * Claude API client for content generation
@@ -30,11 +29,6 @@ class ClaudeClient {
     private const API_VERSION = '2023-06-01';
 
     /**
-     * HTTP client
-     */
-    private Client $client;
-
-    /**
      * API key
      */
     private string $apiKey;
@@ -43,6 +37,11 @@ class ClaudeClient {
      * Model to use
      */
     private string $model;
+
+    /**
+     * Request timeout
+     */
+    private int $timeout = 120;
 
     /**
      * Constructor
@@ -57,16 +56,42 @@ class ClaudeClient {
             : '';
 
         $this->model = $settings['claude_model'] ?? 'claude-sonnet-4-20250514';
+    }
 
-        $this->client = new Client([
-            'base_uri' => self::API_BASE_URL,
-            'timeout' => 120,
+    /**
+     * Make API request using WordPress HTTP API
+     *
+     * @param string $endpoint API endpoint
+     * @param array $data Request data
+     * @return array|WP_Error Response or error
+     */
+    private function makeRequest(string $endpoint, array $data): array|WP_Error {
+        $url = self::API_BASE_URL . $endpoint;
+
+        $response = wp_remote_post($url, [
+            'timeout' => $this->timeout,
             'headers' => [
                 'Content-Type' => 'application/json',
                 'x-api-key' => $this->apiKey,
                 'anthropic-version' => self::API_VERSION,
             ],
+            'body' => wp_json_encode($data),
         ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+
+        if ($status_code >= 400) {
+            $error_message = $decoded['error']['message'] ?? __('API request failed', 'wp-product-builder');
+            return new WP_Error('api_error', $this->parseErrorMessage($error_message, $status_code));
+        }
+
+        return $decoded;
     }
 
     /**
@@ -92,51 +117,48 @@ class ClaudeClient {
 
         $params = array_merge($defaults, $options);
 
-        try {
-            $response = $this->client->post('/messages', [
-                'json' => [
-                    'model' => $this->model,
-                    'max_tokens' => $params['max_tokens'],
-                    'temperature' => $params['temperature'],
-                    'system' => $params['system'],
-                    'messages' => [
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                ],
-            ]);
+        $data = [
+            'model' => $this->model,
+            'max_tokens' => $params['max_tokens'],
+            'temperature' => $params['temperature'],
+            'system' => $params['system'],
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt],
+            ],
+        ];
 
-            $body = json_decode($response->getBody()->getContents(), true);
+        $response = $this->makeRequest('/messages', $data);
 
-            // Extract content from response
-            $content = '';
-            if (!empty($body['content'])) {
-                foreach ($body['content'] as $block) {
-                    if ($block['type'] === 'text') {
-                        $content .= $block['text'];
-                    }
-                }
-            }
-
-            // Track API usage
-            $this->trackUsage($body['usage'] ?? []);
-
-            return [
-                'success' => true,
-                'content' => $content,
-                'usage' => [
-                    'input_tokens' => $body['usage']['input_tokens'] ?? 0,
-                    'output_tokens' => $body['usage']['output_tokens'] ?? 0,
-                ],
-                'model' => $this->model,
-                'stop_reason' => $body['stop_reason'] ?? null,
-            ];
-
-        } catch (GuzzleException $e) {
+        if (is_wp_error($response)) {
             return [
                 'success' => false,
-                'error' => $this->parseError($e),
+                'error' => $response->get_error_message(),
             ];
         }
+
+        // Extract content from response
+        $content = '';
+        if (!empty($response['content'])) {
+            foreach ($response['content'] as $block) {
+                if ($block['type'] === 'text') {
+                    $content .= $block['text'];
+                }
+            }
+        }
+
+        // Track API usage
+        $this->trackUsage($response['usage'] ?? []);
+
+        return [
+            'success' => true,
+            'content' => $content,
+            'usage' => [
+                'input_tokens' => $response['usage']['input_tokens'] ?? 0,
+                'output_tokens' => $response['usage']['output_tokens'] ?? 0,
+            ],
+            'model' => $this->model,
+            'stop_reason' => $response['stop_reason'] ?? null,
+        ];
     }
 
     /**
@@ -152,38 +174,35 @@ class ClaudeClient {
             ];
         }
 
-        try {
-            $response = $this->client->post('/messages', [
-                'json' => [
-                    'model' => $this->model,
-                    'max_tokens' => 10,
-                    'messages' => [
-                        ['role' => 'user', 'content' => 'Say "connected" in one word.'],
-                    ],
-                ],
-            ]);
+        $data = [
+            'model' => $this->model,
+            'max_tokens' => 10,
+            'messages' => [
+                ['role' => 'user', 'content' => 'Say "connected" in one word.'],
+            ],
+        ];
 
-            $body = json_decode($response->getBody()->getContents(), true);
+        $response = $this->makeRequest('/messages', $data);
 
-            if (!empty($body['content'])) {
-                return [
-                    'success' => true,
-                    'message' => __('Connection successful!', 'wp-product-builder'),
-                    'model' => $this->model,
-                ];
-            }
-
+        if (is_wp_error($response)) {
             return [
                 'success' => false,
-                'message' => __('Unexpected response from API.', 'wp-product-builder'),
-            ];
-
-        } catch (GuzzleException $e) {
-            return [
-                'success' => false,
-                'message' => $this->parseError($e),
+                'message' => $response->get_error_message(),
             ];
         }
+
+        if (!empty($response['content'])) {
+            return [
+                'success' => true,
+                'message' => __('Connection successful!', 'wp-product-builder'),
+                'model' => $this->model,
+            ];
+        }
+
+        return [
+            'success' => false,
+            'message' => __('Unexpected response from API.', 'wp-product-builder'),
+        ];
     }
 
     /**
@@ -249,28 +268,18 @@ PROMPT;
     }
 
     /**
-     * Parse error message from exception
+     * Parse error message
      *
-     * @param GuzzleException $e The exception
-     * @return string Error message
+     * @param string $message Error message
+     * @param int $statusCode HTTP status code
+     * @return string Parsed error message
      */
-    private function parseError(GuzzleException $e): string {
-        if (method_exists($e, 'getResponse') && $e->getResponse()) {
-            $body = json_decode($e->getResponse()->getBody()->getContents(), true);
-
-            if (!empty($body['error']['message'])) {
-                return $body['error']['message'];
-            }
-        }
-
-        $message = $e->getMessage();
-
-        // Clean up common error messages
-        if (str_contains($message, 'authentication_error')) {
+    private function parseErrorMessage(string $message, int $statusCode): string {
+        if ($statusCode === 401 || str_contains($message, 'authentication_error')) {
             return __('Invalid API key. Please check your Claude API key.', 'wp-product-builder');
         }
 
-        if (str_contains($message, 'rate_limit')) {
+        if ($statusCode === 429 || str_contains($message, 'rate_limit')) {
             return __('Rate limit exceeded. Please try again later.', 'wp-product-builder');
         }
 
