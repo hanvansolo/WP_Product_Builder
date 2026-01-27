@@ -4,7 +4,7 @@ Tags: affiliate, amazon, ai, content generator, product reviews, claude
 Requires at least: 6.0
 Tested up to: 6.4
 Requires PHP: 8.1
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -52,6 +52,10 @@ No! The plugin includes a scraper fallback for new affiliates who haven't yet qu
 The plugin uses Claude API from Anthropic. You'll need a Claude API key to generate content.
 
 == Changelog ==
+
+= 1.1.1 =
+* Added missing admin templates (templates.php, products.php)
+* Fixed fatal error on activation
 
 = 1.1.0 =
 * Removed Guzzle HTTP dependency - now uses WordPress HTTP API
