@@ -213,22 +213,23 @@ class ContentGenerator {
             $content = $this->markdownToHtml($content);
         }
 
-        // Add product boxes
-        foreach ($products as $index => $product) {
-            $placeholder = "[PRODUCT_BOX_{$index}]";
-            if (str_contains($content, $placeholder)) {
-                $productBox = $this->renderProductBox($product);
-                $content = str_replace($placeholder, $productBox, $content);
-            }
-
-            // Replace price placeholders
-            $pricePlaceholder = "[PRICE_{$index}]";
-            $content = str_replace($pricePlaceholder, $product['price'] ?? 'Check price', $content);
-        }
-
-        // Add buy buttons
+        // Replace product box placeholders (handle various bracket styles Claude might use)
+        // Matches: [PRODUCT_BOX_0], 【PRODUCT_BOX_0】, ［PRODUCT_BOX_0］, etc.
         $content = preg_replace_callback(
-            '/\[BUY_BUTTON_(\d+)\]/',
+            '/[\[【［\(]\s*PRODUCT[_\s-]*BOX[_\s-]*(\d+)\s*[\]】］\)]/iu',
+            function($matches) use ($products) {
+                $index = (int) $matches[1];
+                if (isset($products[$index])) {
+                    return $this->renderProductBox($products[$index]);
+                }
+                return '';
+            },
+            $content
+        );
+
+        // Replace buy button placeholders (handle various bracket styles)
+        $content = preg_replace_callback(
+            '/[\[【［\(]\s*BUY[_\s-]*BUTTON[_\s-]*(\d+)\s*[\]】］\)]/iu',
             function($matches) use ($products) {
                 $index = (int) $matches[1];
                 if (isset($products[$index])) {
@@ -238,6 +239,28 @@ class ContentGenerator {
             },
             $content
         );
+
+        // Replace price placeholders
+        $content = preg_replace_callback(
+            '/[\[【［\(]\s*PRICE[_\s-]*(\d+)\s*[\]】］\)]/iu',
+            function($matches) use ($products) {
+                $index = (int) $matches[1];
+                if (isset($products[$index])) {
+                    return $products[$index]['price'] ?? 'Check price';
+                }
+                return 'Check price';
+            },
+            $content
+        );
+
+        // If no product boxes were inserted, add them at the beginning for each product
+        if (!str_contains($content, 'wpb-product-box')) {
+            $productBoxes = '';
+            foreach ($products as $product) {
+                $productBoxes .= $this->renderProductBox($product);
+            }
+            $content = $productBoxes . $content;
+        }
 
         return $content;
     }
@@ -249,20 +272,52 @@ class ContentGenerator {
      * @return string HTML
      */
     private function renderProductBox(array $product): string {
-        $html = '<div class="wpb-product-box">';
-        $html .= '<div class="wpb-product-image">';
-        if (!empty($product['image_url'])) {
-            $html .= '<img src="' . esc_url($product['image_url']) . '" alt="' . esc_attr($product['title']) . '">';
-        }
-        $html .= '</div>';
-        $html .= '<div class="wpb-product-details">';
-        $html .= '<h3 class="wpb-product-title">' . esc_html($product['title']) . '</h3>';
+        $affiliateUrl = $product['affiliate_url'] ?? $this->buildAffiliateUrl($product['asin'] ?? '');
 
+        $html = '<div class="wpb-product-box">';
+
+        // Product Image (linked to Amazon)
+        $html .= '<div class="wpb-product-image">';
+        $html .= '<a href="' . esc_url($affiliateUrl) . '" rel="nofollow sponsored" target="_blank">';
+        if (!empty($product['image_url'])) {
+            $html .= '<img src="' . esc_url($product['image_url']) . '" alt="' . esc_attr($product['title'] ?? '') . '">';
+        } else {
+            $html .= '<div style="width:200px;height:200px;background:#f5f5f5;display:flex;align-items:center;justify-content:center;color:#999;">No Image</div>';
+        }
+        $html .= '</a>';
+        $html .= '</div>';
+
+        // Product Details
+        $html .= '<div class="wpb-product-details">';
+
+        // Title (linked)
+        $html .= '<h3 class="wpb-product-title">';
+        $html .= '<a href="' . esc_url($affiliateUrl) . '" rel="nofollow sponsored" target="_blank">';
+        $html .= esc_html($product['title'] ?? 'Product');
+        $html .= '</a></h3>';
+
+        // Rating
+        if (!empty($product['rating'])) {
+            $rating = (float) $product['rating'];
+            $fullStars = (int) floor($rating);
+            $emptyStars = 5 - $fullStars;
+
+            $html .= '<div class="wpb-product-rating">';
+            $html .= '<span class="stars">' . str_repeat('★', $fullStars) . str_repeat('☆', $emptyStars) . '</span>';
+            $html .= ' <span class="rating-value">' . number_format($rating, 1) . '</span>';
+            if (!empty($product['review_count'])) {
+                $html .= ' <span class="count">(' . number_format((int) $product['review_count']) . ')</span>';
+            }
+            $html .= '</div>';
+        }
+
+        // Price
         if (!empty($product['price'])) {
             $html .= '<p class="wpb-product-price">' . esc_html($product['price']) . '</p>';
         }
 
-        if (!empty($product['features'])) {
+        // Features (first 3)
+        if (!empty($product['features']) && is_array($product['features'])) {
             $html .= '<ul class="wpb-product-features">';
             foreach (array_slice($product['features'], 0, 3) as $feature) {
                 $html .= '<li>' . esc_html($feature) . '</li>';
@@ -270,6 +325,7 @@ class ContentGenerator {
             $html .= '</ul>';
         }
 
+        // Buy Button
         $html .= $this->renderBuyButton($product);
         $html .= '</div></div>';
 
