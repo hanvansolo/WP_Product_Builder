@@ -71,10 +71,10 @@ class Listicle implements ContentTypeInterface {
         $prompt .= "- Format output in HTML with proper heading tags\n";
         $prompt .= "- Use numbered headings (1. Product Name, 2. Product Name, etc.)\n";
         $prompt .= "- Start with a catchy introduction that hooks the reader\n";
-        $prompt .= "- For each item, include:\n";
+        $prompt .= "- IMPORTANT: For each item, include:\n";
+        $prompt .= "  - Start with [PRODUCT_BOX_X] placeholder (X = index from 0) - this displays the product image, price, and buy button\n";
         $prompt .= "  - A brief, punchy description (2-3 sentences)\n";
         $prompt .= "  - What makes it special or unique\n";
-        $prompt .= "  - A [BUY_BUTTON_X] placeholder (X = index from 0)\n";
         $prompt .= "- Use engaging subheadings and bullet points for scannability\n";
         $prompt .= "- End with a brief conclusion\n";
 

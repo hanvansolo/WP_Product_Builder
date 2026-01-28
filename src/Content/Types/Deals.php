@@ -72,11 +72,11 @@ class Deals implements ContentTypeInterface {
         $prompt .= "- Format output in HTML with proper heading tags\n";
         $prompt .= "- Start with an attention-grabbing introduction about saving money\n";
         $prompt .= "- Create a sense of urgency (limited time, while supplies last, etc.)\n";
-        $prompt .= "- For each deal, include:\n";
+        $prompt .= "- IMPORTANT: For each deal, include:\n";
+        $prompt .= "  - Start with [PRODUCT_BOX_X] placeholder (X = index from 0) - this displays the product image, price, and buy button\n";
         $prompt .= "  - Eye-catching heading\n";
         $prompt .= "  - Why this is a great deal\n";
         $prompt .= "  - Key benefits of the product\n";
-        $prompt .= "  - A prominent [BUY_BUTTON_X] placeholder (X = index from 0)\n";
         $prompt .= "- Use phrases like \"Don't miss out\", \"Limited time\", \"Best price\"\n";
         $prompt .= "- Keep descriptions brief and action-oriented\n";
         $prompt .= "- End with a call to action to shop now\n";

@@ -90,8 +90,9 @@ class ProductReview implements ContentTypeInterface {
             $prompt .= "- Include a brief buying guide section\n";
         }
 
-        $prompt .= "- Add [BUY_BUTTON_0] placeholder where you want to place a purchase button\n";
-        $prompt .= "\nWrite the review now:";
+        $prompt .= "- IMPORTANT: Start the review with [PRODUCT_BOX_0] placeholder - this will display the product image, price, and buy button\n";
+        $prompt .= "- Add [BUY_BUTTON_0] placeholder at the end of the review for a final call-to-action\n";
+        $prompt .= "\nWrite the review now (remember to start with [PRODUCT_BOX_0]):";
 
         return $prompt;
     }

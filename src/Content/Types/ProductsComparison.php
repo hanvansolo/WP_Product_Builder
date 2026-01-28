@@ -93,7 +93,7 @@ class ProductsComparison implements ContentTypeInterface {
             $prompt .= "7. **FAQ Section** - 3-5 questions comparing these specific products\n\n";
         }
 
-        $prompt .= "- Include [BUY_BUTTON_X] placeholder for each product (X = product index from 0)\n";
+        $prompt .= "- IMPORTANT: In the Individual Product Overviews section, start each product with [PRODUCT_BOX_X] placeholder (X = product index from 0) - this displays the product image, price, and buy button\n";
         $prompt .= "- Be objective and balanced in the comparison\n";
         $prompt .= "\nWrite the comparison article now:";
 

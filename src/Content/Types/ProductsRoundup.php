@@ -73,11 +73,11 @@ class ProductsRoundup implements ContentTypeInterface {
         $prompt .= "- {$length}\n";
         $prompt .= "- Format output in HTML with proper heading tags (h2, h3)\n";
         $prompt .= "- Start with an engaging introduction explaining why these are the best options\n";
-        $prompt .= "- For each product, include:\n";
+        $prompt .= "- IMPORTANT: For each product, include:\n";
+        $prompt .= "  - Start with [PRODUCT_BOX_X] placeholder (where X is the product index starting from 0) - this displays the product image, price, and buy button\n";
         $prompt .= "  - A brief description (2-3 sentences)\n";
         $prompt .= "  - Key highlights or best features\n";
         $prompt .= "  - Who it's best for\n";
-        $prompt .= "  - A [BUY_BUTTON_X] placeholder (where X is the product index starting from 0)\n";
 
         if ($options['include_buying_guide'] ?? false) {
             $prompt .= "- Include a buying guide section at the end with tips for choosing\n";
