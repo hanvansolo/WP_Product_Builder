@@ -464,6 +464,7 @@
             $.ajax({
                 url: wpbAdmin.apiUrl + '/content/generate',
                 method: 'POST',
+                timeout: 120000,
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                     xhr.setRequestHeader('Content-Type', 'application/json');
@@ -524,6 +525,7 @@
             $.ajax({
                 url: wpbAdmin.apiUrl + '/content/create-post',
                 method: 'POST',
+                timeout: 30000,
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                     xhr.setRequestHeader('Content-Type', 'application/json');

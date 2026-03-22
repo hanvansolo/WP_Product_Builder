@@ -73,11 +73,17 @@ class ProductReview implements ContentTypeInterface {
         $prompt .= "- {$length}\n";
         $prompt .= "- Format output in HTML with proper heading tags (h2, h3)\n";
         $prompt .= "- Include an engaging introduction\n";
-        $prompt .= "- Research what real reviewers and publications have said about this product\n";
-        $prompt .= "- Include quotes and opinions from multiple sources, attributing them naturally\n";
-        $prompt .= "- Use phrases like: 'According to TechRadar...', 'Reviewers at Wirecutter noted that...', 'CNET's review highlights...', 'Many Amazon reviewers praise...'\n";
-        $prompt .= "- Synthesize opinions from different sources to give a balanced, well-rounded perspective\n";
-        $prompt .= "- Cite at least 3-4 different review sources throughout the article\n";
+        $prompt .= "- Based on your knowledge, include what real reviewers and publications have said about this product or similar products from the same brand\n";
+        $prompt .= "- Attribute opinions to specific sources naturally throughout the article, for example:\n";
+        $prompt .= "  - 'According to TechRadar, this product excels at...'\n";
+        $prompt .= "  - 'Wirecutter noted that buyers should consider...'\n";
+        $prompt .= "  - 'CNET reviewers highlighted the...'\n";
+        $prompt .= "  - 'Tom's Guide praised the build quality...'\n";
+        $prompt .= "  - 'Many users on Amazon report that...'\n";
+        $prompt .= "  - 'Reddit users in r/BuyItForLife recommend...'\n";
+        $prompt .= "- Reference at least 3-4 different review sources throughout the article\n";
+        $prompt .= "- If you don't have specific review data for this exact product, reference reviews of the brand's product line or the product category from known publications\n";
+        $prompt .= "- Make the citations feel natural and integrated, not forced\n";
 
         if ($options['include_pros_cons'] ?? true) {
             $prompt .= "- Include a Pros and Cons section with bullet points\n";

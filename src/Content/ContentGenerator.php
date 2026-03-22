@@ -192,10 +192,13 @@ class ContentGenerator {
             ]);
         }
 
-        // Set featured image from first product
+        // Schedule featured image download (non-blocking)
         $products = json_decode($history['products_json'], true);
         if (!empty($products[0]['image_url'])) {
-            $this->setFeaturedImage($postId, $products[0]['image_url'], $history['title']);
+            // Store image URL for background processing
+            update_post_meta($postId, '_wpb_pending_image', $products[0]['image_url']);
+            // Try to set it now with a short timeout, but don't block
+            $this->trySetFeaturedImage($postId, $products[0]['image_url'], $history['title']);
         }
 
         // Update history with post ID
@@ -460,9 +463,9 @@ class ContentGenerator {
     }
 
     /**
-     * Set featured image for a post from a URL
+     * Try to set featured image with a short timeout so it doesn't block post creation
      */
-    private function setFeaturedImage(int $postId, string $imageUrl, string $title): void {
+    private function trySetFeaturedImage(int $postId, string $imageUrl, string $title): void {
         if (empty($imageUrl)) {
             return;
         }
@@ -471,13 +474,16 @@ class ContentGenerator {
         require_once ABSPATH . 'wp-admin/includes/file.php';
         require_once ABSPATH . 'wp-admin/includes/image.php';
 
-        $tmpFile = download_url($imageUrl);
+        // Download with a short timeout
+        $tmpFile = download_url($imageUrl, 10);
         if (is_wp_error($tmpFile)) {
+            // Image download failed — post still created, just without featured image
             return;
         }
 
+        $ext = pathinfo(wp_parse_url($imageUrl, PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
         $fileArray = [
-            'name' => sanitize_file_name($title) . '.jpg',
+            'name' => sanitize_file_name($title) . '.' . $ext,
             'tmp_name' => $tmpFile,
         ];
 
@@ -485,6 +491,7 @@ class ContentGenerator {
 
         if (!is_wp_error($attachmentId)) {
             set_post_thumbnail($postId, $attachmentId);
+            delete_post_meta($postId, '_wpb_pending_image');
         }
     }
 
