@@ -656,9 +656,164 @@
     100% { transform: rotate(360deg); }
 }
 
+/* Network Selector */
+.wpb-network-selector {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.wpb-network-selector label {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.wpb-network-selector select {
+    min-width: 150px;
+}
+
+/* Bulk Add */
+.wpb-bulk-input {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.wpb-bulk-input label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.wpb-bulk-input textarea {
+    width: 100%;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+#wpb-bulk-status {
+    margin-left: 10px;
+    font-size: 13px;
+}
+
+/* No Results */
+.wpb-no-results {
+    padding: 15px;
+    color: #d63638;
+    background: #fcf0f1;
+    border-radius: 4px;
+    border-left: 4px solid #d63638;
+}
+
+/* Optional Badge */
+.wpb-optional-badge {
+    font-size: 11px;
+    font-weight: normal;
+    background: #f0f0f0;
+    color: #666;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: auto;
+}
+
+/* Product Box (in generated content) */
+.wpb-product-box {
+    display: flex;
+    gap: 20px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+.wpb-product-box .wpb-product-image {
+    flex-shrink: 0;
+}
+
+.wpb-product-box .wpb-product-image img {
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
+    border-radius: 4px;
+}
+
+.wpb-product-box .wpb-product-details {
+    flex: 1;
+}
+
+.wpb-product-box .wpb-product-title a {
+    color: #1d2327;
+    text-decoration: none;
+    font-size: 18px;
+}
+
+.wpb-product-box .wpb-product-title a:hover {
+    color: #2271b1;
+}
+
+.wpb-product-box .wpb-product-rating {
+    margin: 8px 0;
+    color: #f0ad4e;
+}
+
+.wpb-product-box .wpb-product-rating .rating-value {
+    color: #666;
+    font-size: 13px;
+}
+
+.wpb-product-box .wpb-product-price {
+    font-size: 22px;
+    font-weight: 700;
+    color: #b12704;
+    margin: 8px 0;
+}
+
+.wpb-product-box .wpb-product-features {
+    margin: 10px 0;
+    padding-left: 20px;
+    color: #555;
+    font-size: 13px;
+}
+
+.wpb-buy-button {
+    display: inline-block;
+    padding: 10px 24px;
+    background: linear-gradient(135deg, #f0c14b 0%, #e8a317 100%);
+    color: #111 !important;
+    text-decoration: none !important;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 14px;
+    border: 1px solid #a88734;
+    transition: all 0.2s;
+    margin-top: 10px;
+}
+
+.wpb-buy-button:hover {
+    background: linear-gradient(135deg, #e8a317 0%, #d4940c 100%);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
 /* Notices */
 #wpb-settings-notices .notice,
 #wpb-generator-notices .notice {
     margin-left: 0;
     margin-right: 0;
+}
+
+/* Settings page improvements */
+.wpb-settings-form .form-table input[type="text"],
+.wpb-settings-form .form-table input[type="password"],
+.wpb-settings-form .form-table input[type="number"] {
+    border-radius: 4px;
+}
+
+.wpb-settings-form .button {
+    border-radius: 4px;
+}
+
+.wpb-settings-form .button-hero {
+    border-radius: 6px;
 }
