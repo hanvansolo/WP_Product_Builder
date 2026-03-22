@@ -255,10 +255,24 @@ class CJClient implements ProductNetworkInterface {
         $decoded = json_decode($body, true);
 
         // Handle HTTP errors
-        if ($statusCode === 401 || $statusCode === 403) {
+        if ($statusCode === 401) {
             return [
                 'success' => false,
-                'error' => __('CJ authentication failed. Check your API key.', 'wp-product-builder'),
+                'error' => __('CJ authentication failed. Check your API key (Personal Access Token).', 'wp-product-builder'),
+            ];
+        }
+
+        if ($statusCode === 403) {
+            // CJ returns 403 when companyId is wrong
+            if (is_string($body) && str_contains($body, 'not authorized')) {
+                return [
+                    'success' => false,
+                    'error' => __('Not authorized for this Company ID. Make sure you enter your CID (not Website ID) from Account > Company Info in CJ.', 'wp-product-builder'),
+                ];
+            }
+            return [
+                'success' => false,
+                'error' => __('CJ access denied. Check your API key and Company ID.', 'wp-product-builder'),
             ];
         }
 
