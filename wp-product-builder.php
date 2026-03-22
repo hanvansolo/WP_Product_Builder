@@ -3,7 +3,7 @@
  * Plugin Name: Nito Product Builder
  * Plugin URI: https://github.com/hanvansolo/WP_Product_Builder
  * Description: AI-powered affiliate content generator using Claude API with Amazon, CJ Affiliate, and Awin support. Create product reviews, roundups, comparisons, and more.
- * Version: 2.0.13
+ * Version: 2.0.14
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Ed Deyzel
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin version
-define('WPB_VERSION', '2.0.13');
+define('WPB_VERSION', '2.0.14');
 
 // Plugin paths
 define('WPB_PLUGIN_FILE', __FILE__);

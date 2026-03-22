@@ -64,19 +64,24 @@
                 remove_data_on_uninstall: $('#remove_data_on_uninstall').is(':checked')
             };
 
-            $button.prop('disabled', true).text(wpbAdmin.i18n.saving);
+            // Prevent double submission
+            if ($button.data('saving')) return;
+            $button.data('saving', true);
+
+            $button.prop('disabled', true).text('Saving...');
             $spinner.addClass('is-active');
 
             $.ajax({
                 url: wpbAdmin.apiUrl + '/settings',
                 method: 'POST',
+                timeout: 30000,
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                     xhr.setRequestHeader('Content-Type', 'application/json');
                 },
                 data: JSON.stringify(formData),
                 success: function(response) {
-                    WPBAdmin.showNotice(wpbAdmin.i18n.saved, 'success');
+                    WPBAdmin.showNotice('Settings saved!', 'success');
 
                     // Clear password fields (they're saved)
                     if (formData.claude_api_key) {
@@ -102,7 +107,7 @@
                     WPBAdmin.showNotice(message, 'error');
                 },
                 complete: function() {
-                    $button.prop('disabled', false).text('Save Settings');
+                    $button.prop('disabled', false).text('Save Settings').data('saving', false);
                     $spinner.removeClass('is-active');
                 }
             });
