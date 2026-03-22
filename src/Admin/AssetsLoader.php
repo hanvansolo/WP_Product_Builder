@@ -108,7 +108,6 @@ class AssetsLoader {
             'ajaxNonce' => wp_create_nonce('wpb_ajax'),
             'pluginUrl' => WPB_PLUGIN_URL,
             'settings' => get_option('wpb_settings', []),
-            'extensionId' => get_option('wpb_settings', [])['chrome_extension_id'] ?? '',
             'i18n' => [
                 'saving' => __('Saving...', 'wp-product-builder'),
                 'saved' => __('Saved!', 'wp-product-builder'),

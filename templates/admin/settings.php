@@ -197,25 +197,32 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row">
-                        <label for="chrome_extension_id"><?php esc_html_e('Chrome Extension ID', 'wp-product-builder'); ?></label>
-                    </th>
+                    <th scope="row"><?php esc_html_e('Amazon Search Extension', 'wp-product-builder'); ?></th>
                     <td>
-                        <input type="text"
-                               id="chrome_extension_id"
-                               name="chrome_extension_id"
-                               class="regular-text"
-                               value="<?php echo esc_attr($settings['chrome_extension_id'] ?? ''); ?>"
-                               placeholder="<?php esc_attr_e('Extension ID from chrome://extensions', 'wp-product-builder'); ?>">
-                        <span id="wpb-extension-status"></span>
+                        <span id="wpb-extension-status">
+                            <span style="color:#d63638;">Not detected</span>
+                        </span>
                         <p class="description">
-                            <?php esc_html_e('Install the Nito Chrome Extension for Amazon search without PA-API. Enter the Extension ID after installing.', 'wp-product-builder'); ?>
+                            <?php esc_html_e('Install the Nito Chrome Extension to search Amazon products without PA-API keys.', 'wp-product-builder'); ?>
                             <br>
-                            <a href="<?php echo esc_url(WPB_PLUGIN_URL . 'chrome-extension/'); ?>" target="_blank">
-                                <?php esc_html_e('Download Extension', 'wp-product-builder'); ?>
-                            </a>
-                            <?php esc_html_e('then load it via chrome://extensions (Developer mode > Load unpacked).', 'wp-product-builder'); ?>
+                            <strong><?php esc_html_e('Setup:', 'wp-product-builder'); ?></strong>
+                            <?php
+                            printf(
+                                esc_html__('1. Download the %s folder from GitHub  2. Open chrome://extensions  3. Enable Developer mode  4. Click "Load unpacked" and select the folder', 'wp-product-builder'),
+                                '<a href="https://github.com/hanvansolo/WP_Product_Builder/tree/main/chrome-extension" target="_blank">chrome-extension</a>'
+                            );
+                            ?>
                         </p>
+                        <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            if (window.nitoExtensionInstalled) {
+                                document.getElementById('wpb-extension-status').innerHTML = '<span style="color:#00a32a;"><strong>Installed</strong></span>';
+                            }
+                            window.addEventListener('nito-extension-ready', function() {
+                                document.getElementById('wpb-extension-status').innerHTML = '<span style="color:#00a32a;"><strong>Installed</strong></span>';
+                            });
+                        });
+                        </script>
                     </td>
                 </tr>
             </table>

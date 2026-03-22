@@ -204,7 +204,6 @@ class SettingsEndpoint extends WP_REST_Controller {
             'default_post_status',
             'affiliate_disclosure',
             'focus_category',
-            'chrome_extension_id',
         ];
 
         foreach ($setting_fields as $field) {

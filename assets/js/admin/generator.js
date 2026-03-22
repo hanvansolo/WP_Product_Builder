@@ -4,11 +4,6 @@
 (function($) {
     'use strict';
 
-    // Chrome Extension ID - UPDATE THIS after publishing the extension
-    var NITO_EXTENSION_ID = window.wpbAdmin && window.wpbAdmin.extensionId
-        ? window.wpbAdmin.extensionId
-        : '';
-
     var WPBGenerator = {
         currentStep: 1,
         maxStep: 5,
@@ -31,23 +26,16 @@
          * Detect if Chrome extension is installed
          */
         detectExtension: function() {
-            if (!NITO_EXTENSION_ID || typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+            // Extension injects window.nitoExtensionInstalled = true
+            if (window.nitoExtensionInstalled) {
+                this.extensionInstalled = true;
                 return;
             }
 
-            try {
-                chrome.runtime.sendMessage(NITO_EXTENSION_ID, { action: 'ping' }, function(response) {
-                    if (chrome.runtime.lastError) {
-                        return;
-                    }
-                    if (response && response.installed) {
-                        WPBGenerator.extensionInstalled = true;
-                        console.log('Nito extension detected v' + response.version);
-                    }
-                });
-            } catch (e) {
-                // Extension not installed
-            }
+            // Listen for late detection
+            window.addEventListener('nito-extension-ready', function() {
+                WPBGenerator.extensionInstalled = true;
+            });
         },
 
         /**
@@ -140,7 +128,7 @@
             $button.prop('disabled', true).html('<span class="wpb-loading"></span>');
 
             // For Amazon: try Chrome extension first, then server fallback
-            if (this.selectedNetwork === 'amazon' && this.extensionInstalled && NITO_EXTENSION_ID) {
+            if (this.selectedNetwork === 'amazon' && this.extensionInstalled) {
                 this.searchViaExtension(query);
                 return;
             }
@@ -156,27 +144,34 @@
             var $button = $('#wpb-search-btn');
             var marketplace = wpbAdmin.settings && wpbAdmin.settings.amazon_marketplace
                 ? wpbAdmin.settings.amazon_marketplace : 'UK';
+            var requestId = 'search_' + Date.now();
 
-            chrome.runtime.sendMessage(NITO_EXTENSION_ID, {
-                action: 'search',
-                query: query,
-                marketplace: marketplace
-            }, function(response) {
+            // Listen for response from extension
+            var timeout = setTimeout(function() {
+                window.removeEventListener('nito-search-response', handler);
+                $button.prop('disabled', false).html('<span class="dashicons dashicons-search"></span> Search');
+                WPBGenerator.searchViaServer(query);
+            }, 15000);
+
+            var handler = function(e) {
+                if (e.detail.requestId !== requestId) return;
+                clearTimeout(timeout);
+                window.removeEventListener('nito-search-response', handler);
                 $button.prop('disabled', false).html('<span class="dashicons dashicons-search"></span> Search');
 
-                if (chrome.runtime.lastError) {
-                    // Extension error - fall back to server
-                    WPBGenerator.searchViaServer(query);
-                    return;
-                }
-
-                if (response && response.success && response.products && response.products.length > 0) {
-                    WPBGenerator.displaySearchResults(response.products, null, null);
+                if (e.detail.success && e.detail.products && e.detail.products.length > 0) {
+                    WPBGenerator.displaySearchResults(e.detail.products, null, null);
                 } else {
-                    // Extension returned no results - fall back to server
                     WPBGenerator.searchViaServer(query);
                 }
-            });
+            };
+
+            window.addEventListener('nito-search-response', handler);
+
+            // Send search request to extension
+            window.dispatchEvent(new CustomEvent('nito-search-request', {
+                detail: { query: query, marketplace: marketplace, requestId: requestId }
+            }));
         },
 
         /**
