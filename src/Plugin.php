@@ -271,8 +271,10 @@ final class Plugin {
      * Admin initialization
      */
     public function adminInit(): void {
-        // Check for required database updates
-        $this->checkDatabaseVersion();
+        // Check for required database updates (skip during AJAX/REST to keep saves fast)
+        if (!wp_doing_ajax() && !defined('REST_REQUEST')) {
+            $this->checkDatabaseVersion();
+        }
     }
 
     /**

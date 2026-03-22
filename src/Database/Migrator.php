@@ -306,9 +306,6 @@ class Migrator {
 
         // Run version-specific migrations for existing installs
         self::runMigrations();
-
-        // Update DB version
-        update_option('wpb_db_version', self::DB_VERSION);
     }
 
     /**
