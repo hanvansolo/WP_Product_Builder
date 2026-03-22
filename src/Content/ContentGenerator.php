@@ -13,6 +13,7 @@ namespace WPProductBuilder\Content;
 
 use WPProductBuilder\API\ClaudeClient;
 use WPProductBuilder\Services\ProductDataService;
+use WPProductBuilder\Services\ReviewScraper;
 use WPProductBuilder\Database\Repositories\ContentRepository;
 use WPProductBuilder\Content\Types\ProductReview;
 use WPProductBuilder\Content\Types\ProductsRoundup;
@@ -96,6 +97,17 @@ class ContentGenerator {
 
         // Build prompt
         $prompt = $contentType->buildPrompt($products, $options);
+
+        // Scrape real reviews and append to prompt
+        $settings = get_option('wpb_settings', []);
+        $focusCategory = $settings['focus_category'] ?? 'general';
+        $reviewScraper = new ReviewScraper();
+        $productName = $products[0]['title'] ?? '';
+        $scrapedReviews = $reviewScraper->scrapeReviews($productName, $focusCategory);
+        $reviewContext = $reviewScraper->formatForPrompt($scrapedReviews);
+        if (!empty($reviewContext)) {
+            $prompt .= "\n" . $reviewContext;
+        }
 
         // Get generation options
         $claudeOptions = [

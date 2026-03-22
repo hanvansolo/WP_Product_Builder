@@ -52,6 +52,7 @@
                 awin_publisher_id: $('#awin_publisher_id').val(),
 
                 // Content settings
+                focus_category: $('#focus_category').val(),
                 default_post_status: $('#default_post_status').val(),
                 auto_insert_schema: $('#auto_insert_schema').is(':checked'),
                 affiliate_disclosure: $('#affiliate_disclosure').val(),

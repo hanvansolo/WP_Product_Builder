@@ -203,6 +203,7 @@ class SettingsEndpoint extends WP_REST_Controller {
             'amazon_marketplace',
             'default_post_status',
             'affiliate_disclosure',
+            'focus_category',
         ];
 
         foreach ($setting_fields as $field) {

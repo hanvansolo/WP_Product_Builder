@@ -318,6 +318,24 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
             <table class="form-table">
                 <tr>
                     <th scope="row">
+                        <label for="focus_category"><?php esc_html_e('Product Focus', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <?php $focusCategories = \WPProductBuilder\Services\ReviewScraper::getFocusCategories(); ?>
+                        <select id="focus_category" name="focus_category">
+                            <?php foreach ($focusCategories as $value => $label): ?>
+                            <option value="<?php echo esc_attr($value); ?>" <?php selected($settings['focus_category'] ?? 'general', $value); ?>>
+                                <?php echo esc_html($label); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <p class="description">
+                            <?php esc_html_e('Select your product niche. This determines which review sites are scraped for real citations in generated content.', 'wp-product-builder'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
                         <label for="default_post_status"><?php esc_html_e('Default Post Status', 'wp-product-builder'); ?></label>
                     </th>
                     <td>
