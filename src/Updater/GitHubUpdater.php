@@ -2,7 +2,7 @@
 /**
  * GitHub Plugin Updater
  *
- * Checks GitHub releases for plugin updates and integrates
+ * Checks GitHub releases/tags for plugin updates and integrates
  * with WordPress's built-in update system.
  *
  * @package WPProductBuilder
@@ -11,8 +11,6 @@
 declare(strict_types=1);
 
 namespace WPProductBuilder\Updater;
-
-use WPProductBuilder\Encryption\EncryptionService;
 
 /**
  * Handles checking GitHub for plugin updates
@@ -49,7 +47,7 @@ class GitHubUpdater {
     private string $currentVersion;
 
     /**
-     * Plugin basename (e.g. wp-product-builder/wp-product-builder.php)
+     * Plugin basename
      */
     private string $pluginBasename;
 
@@ -59,72 +57,26 @@ class GitHubUpdater {
     private string $pluginSlug;
 
     /**
-     * GitHub token for private repo access
-     */
-    private string $githubToken;
-
-    /**
      * Constructor
      */
     public function __construct() {
         $this->currentVersion = WPB_VERSION;
         $this->pluginBasename = WPB_PLUGIN_BASENAME;
         $this->pluginSlug = 'wp-product-builder';
-        $this->githubToken = $this->loadGithubToken();
-    }
-
-    /**
-     * Load GitHub token from encrypted credentials
-     */
-    private function loadGithubToken(): string {
-        $credentials = get_option('wpb_credentials_encrypted', []);
-
-        if (!empty($credentials['github_token'])) {
-            $encryption = new EncryptionService();
-            return $encryption->decrypt($credentials['github_token']);
-        }
-
-        return '';
-    }
-
-    /**
-     * Get authorization headers for GitHub API
-     */
-    private function getAuthHeaders(): array {
-        $headers = [
-            'Accept' => 'application/vnd.github.v3+json',
-            'User-Agent' => 'Nito-Product-Builder/' . $this->currentVersion,
-        ];
-
-        if (!empty($this->githubToken)) {
-            $headers['Authorization'] = 'token ' . $this->githubToken;
-        }
-
-        return $headers;
     }
 
     /**
      * Register WordPress hooks for update checking
      */
     public function register(): void {
-        // Hook into update check
         add_filter('pre_set_site_transient_update_plugins', [$this, 'checkForUpdate']);
-
-        // Hook into plugin info popup
         add_filter('plugins_api', [$this, 'pluginInfo'], 20, 3);
-
-        // Hook into post-install to fix directory name
         add_filter('upgrader_post_install', [$this, 'postInstall'], 10, 3);
-
-        // Inject auth header when WordPress downloads from GitHub
-        add_filter('http_request_args', [$this, 'injectAuthForDownload'], 10, 2);
-
-        // Register REST route for manual update check
         add_action('rest_api_init', [$this, 'registerRoutes']);
     }
 
     /**
-     * Register REST API routes for update actions
+     * Register REST API routes for manual update check
      */
     public function registerRoutes(): void {
         register_rest_route('wp-product-builder/v1', '/update/check', [
@@ -140,7 +92,6 @@ class GitHubUpdater {
      * REST handler: Check for updates
      */
     public function restCheckForUpdate(\WP_REST_Request $request): \WP_REST_Response {
-        // Clear cache to force fresh check
         delete_transient(self::CACHE_KEY);
 
         $release = $this->getLatestRelease();
@@ -172,9 +123,6 @@ class GitHubUpdater {
 
     /**
      * Check GitHub for a newer release
-     *
-     * @param object $transient WordPress update transient
-     * @return object Modified transient
      */
     public function checkForUpdate(object $transient): object {
         if (empty($transient->checked)) {
@@ -195,7 +143,7 @@ class GitHubUpdater {
                 'plugin' => $this->pluginBasename,
                 'new_version' => $latestVersion,
                 'url' => "https://github.com/" . self::REPO_OWNER . "/" . self::REPO_NAME,
-                'package' => $this->getAuthenticatedDownloadUrl($release['zipball_url'] ?? ''),
+                'package' => $release['zipball_url'] ?? '',
                 'icons' => [],
                 'banners' => [],
                 'tested' => '',
@@ -209,11 +157,6 @@ class GitHubUpdater {
 
     /**
      * Provide plugin info for the WordPress plugin details popup
-     *
-     * @param false|object|array $result
-     * @param string $action
-     * @param object $args
-     * @return false|object
      */
     public function pluginInfo($result, string $action, object $args) {
         if ($action !== 'plugin_information' || ($args->slug ?? '') !== $this->pluginSlug) {
@@ -249,11 +192,6 @@ class GitHubUpdater {
      * Fix directory name after GitHub zip install
      *
      * GitHub zips extract to owner-repo-hash/, we need wp-product-builder/
-     *
-     * @param bool $response
-     * @param array $hook_extra
-     * @param array $result
-     * @return array
      */
     public function postInstall(bool $response, array $hook_extra, array $result): array {
         global $wp_filesystem;
@@ -262,7 +200,6 @@ class GitHubUpdater {
         $wp_filesystem->move($result['destination'], $pluginFolder);
         $result['destination'] = $pluginFolder;
 
-        // Re-activate if it was active
         if (is_plugin_active($this->pluginBasename)) {
             activate_plugin($this->pluginBasename);
         }
@@ -272,8 +209,6 @@ class GitHubUpdater {
 
     /**
      * Get the latest release from GitHub (cached)
-     *
-     * @return array|null Release data or null on failure
      */
     private function getLatestRelease(): ?array {
         $cached = get_transient(self::CACHE_KEY);
@@ -281,39 +216,34 @@ class GitHubUpdater {
             return $cached;
         }
 
+        $headers = [
+            'Accept' => 'application/vnd.github.v3+json',
+            'User-Agent' => 'Nito-Product-Builder/' . $this->currentVersion,
+        ];
+
+        // Try releases first
         $url = self::API_URL . '/' . self::REPO_OWNER . '/' . self::REPO_NAME . '/releases/latest';
 
         $response = wp_remote_get($url, [
             'timeout' => 10,
-            'headers' => $this->getAuthHeaders(),
+            'headers' => $headers,
         ]);
 
-        if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
-            // Try tags as fallback (if no releases exist)
-            return $this->getLatestTag();
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) === 200) {
+            $release = json_decode(wp_remote_retrieve_body($response), true);
+
+            if (!empty($release['tag_name'])) {
+                set_transient(self::CACHE_KEY, $release, self::CACHE_DURATION);
+                return $release;
+            }
         }
 
-        $release = json_decode(wp_remote_retrieve_body($response), true);
-
-        if (!empty($release['tag_name'])) {
-            set_transient(self::CACHE_KEY, $release, self::CACHE_DURATION);
-            return $release;
-        }
-
-        return null;
-    }
-
-    /**
-     * Fallback: get latest tag if no releases exist
-     *
-     * @return array|null Simulated release data
-     */
-    private function getLatestTag(): ?array {
+        // Fallback to tags
         $url = self::API_URL . '/' . self::REPO_OWNER . '/' . self::REPO_NAME . '/tags?per_page=1';
 
         $response = wp_remote_get($url, [
             'timeout' => 10,
-            'headers' => $this->getAuthHeaders(),
+            'headers' => $headers,
         ]);
 
         if (is_wp_error($response) || wp_remote_retrieve_response_code($response) !== 200) {
@@ -337,35 +267,7 @@ class GitHubUpdater {
     }
 
     /**
-     * Inject auth header when WordPress downloads the zip from GitHub
-     *
-     * @param array $args HTTP request arguments
-     * @param string $url Request URL
-     * @return array Modified arguments
-     */
-    public function injectAuthForDownload(array $args, string $url): array {
-        if (!empty($this->githubToken) && str_contains($url, 'api.github.com/repos/' . self::REPO_OWNER . '/' . self::REPO_NAME)) {
-            $args['headers']['Authorization'] = 'token ' . $this->githubToken;
-            $args['headers']['Accept'] = 'application/vnd.github.v3+json';
-        }
-
-        return $args;
-    }
-
-    /**
-     * Get authenticated download URL for private repo
-     */
-    private function getAuthenticatedDownloadUrl(string $url): string {
-        if (empty($url) || empty($this->githubToken)) {
-            return $url;
-        }
-
-        // Use the API URL with token auth — WordPress upgrader will use our http_request_args filter
-        return $url;
-    }
-
-    /**
-     * Clear the update cache (e.g. after manual check)
+     * Clear the update cache
      */
     public static function clearCache(): void {
         delete_transient(self::CACHE_KEY);
