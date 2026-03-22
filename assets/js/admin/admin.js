@@ -81,6 +81,16 @@
                 if (accessKey) data.access_key = accessKey;
                 if (secretKey) data.secret_key = secretKey;
                 if (partnerTag) data.partner_tag = partnerTag;
+            } else if (api === 'cj') {
+                var cjApiKey = $('#cj_api_key').val();
+                var cjWebsiteId = $('#cj_website_id').val();
+                if (cjApiKey) data.cj_api_key = cjApiKey;
+                if (cjWebsiteId) data.cj_website_id = cjWebsiteId;
+            } else if (api === 'awin') {
+                var awinApiKey = $('#awin_api_key').val();
+                var awinPublisherId = $('#awin_publisher_id').val();
+                if (awinApiKey) data.awin_api_key = awinApiKey;
+                if (awinPublisherId) data.awin_publisher_id = awinPublisherId;
             }
 
             $.ajax({
