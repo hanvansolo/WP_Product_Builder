@@ -62,16 +62,8 @@ class AssetsLoader {
      * @return bool
      */
     private function isPluginPage(string $hook): bool {
-        $plugin_pages = [
-            'toplevel_page_wp-product-builder',
-            'product-builder_page_wp-product-builder-generate',
-            'product-builder_page_wp-product-builder-history',
-            'product-builder_page_wp-product-builder-templates',
-            'product-builder_page_wp-product-builder-products',
-            'product-builder_page_wp-product-builder-settings',
-        ];
-
-        return in_array($hook, $plugin_pages, true);
+        // Match any admin page that contains our plugin slug
+        return str_contains($hook, 'wp-product-builder');
     }
 
     /**
