@@ -233,7 +233,7 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
                 </tr>
                 <tr>
                     <th scope="row">
-                        <label for="cj_website_id"><?php esc_html_e('Website ID', 'wp-product-builder'); ?></label>
+                        <label for="cj_website_id"><?php esc_html_e('Company ID (CID)', 'wp-product-builder'); ?></label>
                     </th>
                     <td>
                         <input type="text"
@@ -241,12 +241,12 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
                                name="cj_website_id"
                                class="regular-text"
                                value="<?php echo esc_attr($credentials['cj_website_id'] ?? ''); ?>"
-                               placeholder="<?php esc_attr_e('Enter your CJ Website ID', 'wp-product-builder'); ?>">
+                               placeholder="<?php esc_attr_e('Enter your CJ Company ID', 'wp-product-builder'); ?>">
                         <button type="button" class="button wpb-test-connection" data-api="cj">
                             <?php esc_html_e('Test Connection', 'wp-product-builder'); ?>
                         </button>
                         <p class="description">
-                            <?php esc_html_e('Your CJ publisher website ID, found in your CJ account settings.', 'wp-product-builder'); ?>
+                            <?php esc_html_e('Your CJ Company ID (CID), found in Account > Company Info in your CJ dashboard.', 'wp-product-builder'); ?>
                         </p>
                         <div class="wpb-connection-result" id="cj-connection-result"></div>
                     </td>
