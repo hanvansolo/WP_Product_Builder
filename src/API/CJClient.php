@@ -2,6 +2,8 @@
 /**
  * CJ Affiliate (Commission Junction) API Client
  *
+ * Uses the CJ Advertiser Product Search GraphQL API
+ *
  * @package WPProductBuilder
  */
 
@@ -13,13 +15,13 @@ use WPProductBuilder\Encryption\EncryptionService;
 use WPProductBuilder\Database\Repositories\ProductRepository;
 
 /**
- * CJ Affiliate product search API client
+ * CJ Affiliate product search API client (GraphQL)
  */
 class CJClient implements ProductNetworkInterface {
     /**
-     * API base URL
+     * CJ GraphQL API endpoint
      */
-    private const API_URL = 'https://product-search.api.cj.com/v2/product-search';
+    private const API_URL = 'https://ads.api.cj.com/query';
 
     /**
      * Max requests per minute
@@ -27,14 +29,14 @@ class CJClient implements ProductNetworkInterface {
     private const RATE_LIMIT = 25;
 
     /**
-     * API key
+     * API key (Personal Access Token)
      */
     private string $apiKey;
 
     /**
-     * Website ID
+     * Company ID (formerly Website ID)
      */
-    private string $websiteId;
+    private string $companyId;
 
     /**
      * Cache duration in seconds
@@ -50,14 +52,14 @@ class CJClient implements ProductNetworkInterface {
      * Constructor
      *
      * @param string|null $apiKey Optional API key (for testing before save)
-     * @param string|null $websiteId Optional website ID (for testing before save)
+     * @param string|null $companyId Optional company/website ID (for testing before save)
      */
-    public function __construct(?string $apiKey = null, ?string $websiteId = null) {
+    public function __construct(?string $apiKey = null, ?string $companyId = null) {
         $settings = get_option('wpb_settings', []);
 
         if ($apiKey !== null) {
             $this->apiKey = $apiKey;
-            $this->websiteId = $websiteId ?? '';
+            $this->companyId = $companyId ?? '';
         } else {
             $encryption = new EncryptionService();
             $credentials = get_option('wpb_credentials_encrypted', []);
@@ -66,7 +68,7 @@ class CJClient implements ProductNetworkInterface {
                 ? $encryption->decrypt($credentials['cj_api_key'])
                 : '';
 
-            $this->websiteId = $credentials['cj_website_id'] ?? '';
+            $this->companyId = $credentials['cj_website_id'] ?? '';
         }
 
         $this->cacheDuration = ($settings['cache_duration_hours'] ?? 24) * HOUR_IN_SECONDS;
@@ -91,7 +93,7 @@ class CJClient implements ProductNetworkInterface {
      * {@inheritdoc}
      */
     public function isConfigured(): bool {
-        return !empty($this->apiKey) && !empty($this->websiteId);
+        return !empty($this->apiKey) && !empty($this->companyId);
     }
 
     /**
@@ -109,24 +111,46 @@ class CJClient implements ProductNetworkInterface {
 
         $count = min($options['item_count'] ?? 10, 50);
 
-        $queryParams = [
-            'website-id' => $this->websiteId,
-            'keywords' => $keywords,
-            'records-per-page' => $count,
-        ];
-
-        if (!empty($options['advertiser_ids'])) {
-            $queryParams['advertiser-ids'] = $options['advertiser_ids'];
+        $query = <<<GRAPHQL
+        {
+            products(companyId: "{$this->companyId}", keywords: "{$this->escapeGraphQL($keywords)}", limit: {$count}) {
+                totalCount
+                records {
+                    catalogId
+                    adId
+                    advertiserId
+                    advertiserName
+                    title
+                    description
+                    price {
+                        amount
+                        currency
+                    }
+                    salePrice {
+                        amount
+                        currency
+                    }
+                    imageUrl
+                    buyUrl
+                    impressionUrl
+                    sku
+                    upc
+                    manufacturerName
+                    inStock
+                    catalogName
+                }
+            }
         }
+        GRAPHQL;
 
-        $url = self::API_URL . '?' . http_build_query($queryParams);
-
-        $response = wp_remote_get($url, [
+        $response = wp_remote_post(self::API_URL, [
             'timeout' => 30,
             'headers' => [
                 'Authorization' => 'Bearer ' . $this->apiKey,
-                'Accept' => 'application/xml',
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
             ],
+            'body' => wp_json_encode(['query' => $query]),
         ]);
 
         if (is_wp_error($response)) {
@@ -140,20 +164,37 @@ class CJClient implements ProductNetworkInterface {
         $body = wp_remote_retrieve_body($response);
 
         if ($statusCode >= 400) {
+            $decoded = json_decode($body, true);
+            $errorMsg = $decoded['errors'][0]['message'] ?? '';
             return [
                 'success' => false,
                 'error' => sprintf(
-                    __('CJ API request failed with status %d', 'wp-product-builder'),
-                    $statusCode
+                    __('CJ API error (HTTP %d): %s', 'wp-product-builder'),
+                    $statusCode,
+                    $errorMsg ?: $body
                 ),
             ];
         }
 
-        $products = $this->parseSearchResponse($body);
+        $data = json_decode($body, true);
 
-        // Cache all products
-        foreach ($products as $product) {
-            $this->productRepo->cacheProduct($product, $this->cacheDuration);
+        // Check for GraphQL errors
+        if (!empty($data['errors'])) {
+            return [
+                'success' => false,
+                'error' => $data['errors'][0]['message'] ?? __('CJ API returned an error.', 'wp-product-builder'),
+            ];
+        }
+
+        $records = $data['data']['products']['records'] ?? [];
+        $products = [];
+
+        foreach ($records as $item) {
+            $product = $this->parseProductData($item);
+            if ($product) {
+                $products[] = $product;
+                $this->productRepo->cacheProduct($product, $this->cacheDuration);
+            }
         }
 
         // Track API usage
@@ -162,7 +203,7 @@ class CJClient implements ProductNetworkInterface {
         return [
             'success' => true,
             'products' => $products,
-            'total_results' => count($products),
+            'total_results' => $data['data']['products']['totalCount'] ?? count($products),
         ];
     }
 
@@ -170,7 +211,7 @@ class CJClient implements ProductNetworkInterface {
      * {@inheritdoc}
      */
     public function getProduct(string $productId): ?array {
-        // Check cache first (CJ has no get-by-ID endpoint)
+        // Check cache first (CJ GraphQL doesn't support lookup by single product ID easily)
         $cached = $this->productRepo->getByProductId($productId, 'cj');
         if ($cached && !$this->isExpired($cached['expires_at'])) {
             return json_decode($cached['product_data'], true);
@@ -214,60 +255,86 @@ class CJClient implements ProductNetworkInterface {
             ];
         }
 
-        $result = $this->searchProducts('test', ['item_count' => 1]);
+        // Simple query to test authentication
+        $query = <<<GRAPHQL
+        {
+            products(companyId: "{$this->companyId}", keywords: "test", limit: 1) {
+                totalCount
+                records {
+                    title
+                }
+            }
+        }
+        GRAPHQL;
 
-        if ($result['success']) {
+        $response = wp_remote_post(self::API_URL, [
+            'timeout' => 15,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+                'Accept' => 'application/json',
+            ],
+            'body' => wp_json_encode(['query' => $query]),
+        ]);
+
+        if (is_wp_error($response)) {
             return [
-                'success' => true,
-                'message' => __('CJ Affiliate connection successful!', 'wp-product-builder'),
+                'success' => false,
+                'message' => $response->get_error_message(),
             ];
         }
 
+        $statusCode = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($statusCode === 401 || $statusCode === 403) {
+            return [
+                'success' => false,
+                'message' => __('Authentication failed. Check your API key.', 'wp-product-builder'),
+            ];
+        }
+
+        if ($statusCode >= 400) {
+            $errorMsg = $body['errors'][0]['message'] ?? '';
+            return [
+                'success' => false,
+                'message' => sprintf(
+                    __('CJ API error (HTTP %d): %s', 'wp-product-builder'),
+                    $statusCode,
+                    $errorMsg ?: __('Unknown error', 'wp-product-builder')
+                ),
+            ];
+        }
+
+        // Check for GraphQL-level errors
+        if (!empty($body['errors'])) {
+            return [
+                'success' => false,
+                'message' => $body['errors'][0]['message'] ?? __('CJ API returned an error.', 'wp-product-builder'),
+            ];
+        }
+
+        $totalCount = $body['data']['products']['totalCount'] ?? 0;
+
         return [
-            'success' => false,
-            'message' => $result['error'] ?? __('CJ Affiliate connection failed.', 'wp-product-builder'),
+            'success' => true,
+            'message' => sprintf(
+                __('CJ Affiliate connection successful! %d products available.', 'wp-product-builder'),
+                $totalCount
+            ),
         ];
     }
 
     /**
-     * Parse XML search response from CJ API
+     * Parse a CJ product record into normalized array
      *
-     * @param string $xml Raw XML response
-     * @return array Normalized product arrays
-     */
-    private function parseSearchResponse(string $xml): array {
-        $products = [];
-
-        libxml_use_internal_errors(true);
-        $doc = simplexml_load_string($xml);
-
-        if ($doc === false) {
-            return [];
-        }
-
-        // CJ returns <products><product>...</product></products>
-        $items = $doc->products->product ?? $doc->product ?? [];
-
-        foreach ($items as $item) {
-            $product = $this->parseProductData($item);
-            if ($product) {
-                $products[] = $product;
-            }
-        }
-
-        return $products;
-    }
-
-    /**
-     * Parse a single CJ product XML element into normalized array
-     *
-     * @param \SimpleXMLElement $item Product XML element
+     * @param array $item Product record from GraphQL response
      * @return array|null Normalized product data
      */
-    private function parseProductData(\SimpleXMLElement $item): ?array {
-        $adId = (string) ($item->{'ad-id'} ?? '');
-        $catalogId = (string) ($item->{'catalog-id'} ?? '');
-        $sku = (string) ($item->{'sku'} ?? '');
+    private function parseProductData(array $item): ?array {
+        $adId = (string) ($item['adId'] ?? '');
+        $catalogId = (string) ($item['catalogId'] ?? '');
+        $sku = (string) ($item['sku'] ?? '');
 
         // Build product ID from available identifiers
         $productId = '';
@@ -279,50 +346,64 @@ class CJClient implements ProductNetworkInterface {
             return null;
         }
 
-        $title = (string) ($item->{'name'} ?? '');
+        $title = $item['title'] ?? '';
         if (empty($title)) {
             return null;
         }
 
         // Price handling
-        $price = (string) ($item->{'price'} ?? '');
-        $salePrice = (string) ($item->{'sale-price'} ?? '');
-        $currency = (string) ($item->{'currency'} ?? 'USD');
-        $displayPrice = !empty($salePrice) ? $salePrice : $price;
-        if ($displayPrice && !str_starts_with($displayPrice, '$') && !str_starts_with($displayPrice, '£') && !str_starts_with($displayPrice, '€')) {
-            $displayPrice = '$' . $displayPrice;
+        $priceData = $item['salePrice'] ?? $item['price'] ?? null;
+        $displayPrice = null;
+        $currency = 'USD';
+        if ($priceData && !empty($priceData['amount'])) {
+            $currency = $priceData['currency'] ?? 'USD';
+            $symbol = match ($currency) {
+                'GBP' => '£',
+                'EUR' => '€',
+                'JPY' => '¥',
+                default => '$',
+            };
+            $displayPrice = $symbol . number_format((float) $priceData['amount'], 2);
         }
 
         // Features from description
-        $description = (string) ($item->{'description'} ?? '');
+        $description = $item['description'] ?? '';
         $features = [];
         if ($description) {
-            // Extract bullet-point style features from description
             $sentences = preg_split('/[.!]\s+/', strip_tags($description));
             $features = array_filter(array_map('trim', array_slice($sentences, 0, 5)));
         }
+
+        $advertiserName = $item['advertiserName'] ?? $item['manufacturerName'] ?? '';
 
         return [
             'product_id' => $productId,
             'asin' => null,
             'network' => 'cj',
             'title' => $title,
-            'brand' => (string) ($item->{'advertiser-name'} ?? $item->{'manufacturer-name'} ?? ''),
-            'price' => $displayPrice ?: null,
+            'brand' => $advertiserName,
+            'price' => $displayPrice,
             'currency' => $currency,
-            'availability' => 'In Stock',
-            'image_url' => (string) ($item->{'image-url'} ?? ''),
-            'affiliate_url' => (string) ($item->{'buy-url'} ?? ''),
+            'availability' => ($item['inStock'] ?? true) ? 'In Stock' : 'Out of Stock',
+            'image_url' => $item['imageUrl'] ?? '',
+            'affiliate_url' => $item['buyUrl'] ?? '',
             'rating' => null,
             'review_count' => null,
             'features' => array_values($features),
             'description' => mb_substr($description, 0, 2000),
-            'category' => (string) ($item->{'advertiser-category'} ?? ''),
+            'category' => $item['catalogName'] ?? '',
             'marketplace' => '',
-            'merchant_name' => (string) ($item->{'advertiser-name'} ?? ''),
+            'merchant_name' => $advertiserName,
             'source' => 'cj_api',
             'fetched_at' => current_time('mysql'),
         ];
+    }
+
+    /**
+     * Escape string for use in GraphQL query
+     */
+    private function escapeGraphQL(string $value): string {
+        return str_replace(['"', '\\', "\n", "\r"], ['\\"', '\\\\', '\\n', '\\r'], $value);
     }
 
     /**
@@ -332,7 +413,6 @@ class CJClient implements ProductNetworkInterface {
         $transient_key = 'wpb_rate_cj';
         $timestamps = get_transient($transient_key) ?: [];
 
-        // Remove timestamps older than 60 seconds
         $cutoff = microtime(true) - 60;
         $timestamps = array_filter($timestamps, fn($ts) => $ts > $cutoff);
 
@@ -350,8 +430,6 @@ class CJClient implements ProductNetworkInterface {
 
     /**
      * Track API usage
-     *
-     * @param string $endpoint Endpoint name
      */
     private function trackUsage(string $endpoint): void {
         global $wpdb;
@@ -373,9 +451,6 @@ class CJClient implements ProductNetworkInterface {
 
     /**
      * Check if cached product is expired
-     *
-     * @param string $expiresAt Expiration datetime
-     * @return bool
      */
     private function isExpired(string $expiresAt): bool {
         return strtotime($expiresAt) < time();
