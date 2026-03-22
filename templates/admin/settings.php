@@ -423,6 +423,30 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
             </h2>
             <table class="form-table">
                 <tr>
+                    <th scope="row">
+                        <label for="github_token"><?php esc_html_e('GitHub Token', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <?php
+                        $gh_token_display = !empty($credentials['github_token'])
+                            ? \WPProductBuilder\Encryption\EncryptionService::mask($encryption->decrypt($credentials['github_token']))
+                            : '';
+                        ?>
+                        <input type="password"
+                               id="github_token"
+                               name="github_token"
+                               class="regular-text"
+                               placeholder="<?php echo $gh_token_display ? esc_attr($gh_token_display) : esc_attr__('Enter GitHub personal access token', 'wp-product-builder'); ?>"
+                               autocomplete="off">
+                        <button type="button" class="button wpb-toggle-password" data-target="github_token">
+                            <span class="dashicons dashicons-visibility"></span>
+                        </button>
+                        <p class="description">
+                            <?php esc_html_e('Required for private repo updates. Needs "repo" scope.', 'wp-product-builder'); ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
                     <th scope="row"><?php esc_html_e('Current Version', 'wp-product-builder'); ?></th>
                     <td>
                         <strong>v<?php echo esc_html(WPB_VERSION); ?></strong>

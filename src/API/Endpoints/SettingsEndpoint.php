@@ -139,6 +139,7 @@ class SettingsEndpoint extends WP_REST_Controller {
                 'cj_website_id' => $credentials['cj_website_id'] ?? '',
                 'awin_api_key_set' => !empty($credentials['awin_api_key']),
                 'awin_publisher_id' => $credentials['awin_publisher_id'] ?? '',
+                'github_token_set' => !empty($credentials['github_token']),
             ],
         ];
 
@@ -193,6 +194,11 @@ class SettingsEndpoint extends WP_REST_Controller {
 
         if (isset($params['awin_publisher_id'])) {
             $credentials['awin_publisher_id'] = sanitize_text_field($params['awin_publisher_id']);
+        }
+
+        // GitHub token
+        if (!empty($params['github_token'])) {
+            $credentials['github_token'] = $encryption->encrypt($params['github_token']);
         }
 
         // Handle settings

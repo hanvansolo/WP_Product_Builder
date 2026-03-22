@@ -60,6 +60,9 @@
                 cache_duration_hours: parseInt($('#cache_duration_hours').val(), 10),
                 enable_price_updates: $('#enable_price_updates').is(':checked'),
 
+                // GitHub token
+                github_token: $('#github_token').val() || null,
+
                 // Advanced settings
                 remove_data_on_uninstall: $('#remove_data_on_uninstall').is(':checked')
             };
@@ -93,6 +96,9 @@
                     }
                     if (formData.awin_api_key) {
                         $('#awin_api_key').val('').attr('placeholder', '****');
+                    }
+                    if (formData.github_token) {
+                        $('#github_token').val('').attr('placeholder', '****');
                     }
                 },
                 error: function(xhr) {
