@@ -32,8 +32,8 @@ class AdminMenu {
     public function registerMenus(): void {
         // Main menu
         add_menu_page(
-            __('WP Product Builder', 'wp-product-builder'),
-            __('Product Builder', 'wp-product-builder'),
+            __('Nito Product Builder', 'wp-product-builder'),
+            __('Nito Builder', 'wp-product-builder'),
             'wpb_generate_content',
             self::MENU_SLUG,
             [$this, 'renderDashboard'],

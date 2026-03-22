@@ -39,6 +39,13 @@ class Activator {
     }
 
     /**
+     * Public method to ensure capabilities exist (called on upgrade too)
+     */
+    public static function ensureCapabilities(): void {
+        self::registerCapabilities();
+    }
+
+    /**
      * Register custom capabilities for roles
      */
     private static function registerCapabilities(): void {

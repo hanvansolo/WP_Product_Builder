@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: WP Product Builder
+ * Plugin Name: Nito Product Builder
  * Plugin URI: https://github.com/hanvansolo/WP_Product_Builder
- * Description: AI-powered affiliate content generator using Claude API with Amazon, CJ Affiliate, and Awin support. Create product reviews, roundups, comparisons, and more with a click.
- * Version: 2.0.2
+ * Description: AI-powered affiliate content generator using Claude API with Amazon, CJ Affiliate, and Awin support. Create product reviews, roundups, comparisons, and more.
+ * Version: 2.0.3
  * Requires at least: 6.0
  * Requires PHP: 8.1
  * Author: Ed Deyzel
@@ -21,7 +21,7 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin version
-define('WPB_VERSION', '2.0.2');
+define('WPB_VERSION', '2.0.3');
 
 // Plugin paths
 define('WPB_PLUGIN_FILE', __FILE__);
@@ -45,7 +45,7 @@ function wpb_check_requirements(): bool {
         $meets_requirements = false;
         $errors[] = sprintf(
             /* translators: 1: Required PHP version, 2: Current PHP version */
-            __('WP Product Builder requires PHP %1$s or higher. You are running PHP %2$s.', 'wp-product-builder'),
+            __('Nito Product Builder requires PHP %1$s or higher. You are running PHP %2$s.', 'wp-product-builder'),
             WPB_MIN_PHP_VERSION,
             PHP_VERSION
         );
@@ -57,7 +57,7 @@ function wpb_check_requirements(): bool {
         $meets_requirements = false;
         $errors[] = sprintf(
             /* translators: 1: Required WordPress version, 2: Current WordPress version */
-            __('WP Product Builder requires WordPress %1$s or higher. You are running WordPress %2$s.', 'wp-product-builder'),
+            __('Nito Product Builder requires WordPress %1$s or higher. You are running WordPress %2$s.', 'wp-product-builder'),
             WPB_MIN_WP_VERSION,
             $wp_version
         );
@@ -70,7 +70,7 @@ function wpb_check_requirements(): bool {
             $meets_requirements = false;
             $errors[] = sprintf(
                 /* translators: %s: PHP extension name */
-                __('WP Product Builder requires the %s PHP extension.', 'wp-product-builder'),
+                __('Nito Product Builder requires the %s PHP extension.', 'wp-product-builder'),
                 $ext
             );
         }
@@ -79,7 +79,7 @@ function wpb_check_requirements(): bool {
     // Display admin notice if requirements not met
     if (!$meets_requirements) {
         add_action('admin_notices', function() use ($errors) {
-            echo '<div class="notice notice-error"><p><strong>' . esc_html__('WP Product Builder', 'wp-product-builder') . '</strong></p>';
+            echo '<div class="notice notice-error"><p><strong>' . esc_html__('Nito Product Builder', 'wp-product-builder') . '</strong></p>';
             echo '<ul>';
             foreach ($errors as $error) {
                 echo '<li>' . esc_html($error) . '</li>';
@@ -111,7 +111,7 @@ function wpb_load_autoloader(): bool {
 
     add_action('admin_notices', function() {
         echo '<div class="notice notice-error"><p>';
-        echo esc_html__('WP Product Builder: Autoloader not found.', 'wp-product-builder');
+        echo esc_html__('Nito Product Builder: Autoloader not found.', 'wp-product-builder');
         echo '</p></div>';
     });
     return false;
@@ -146,7 +146,7 @@ register_activation_hook(__FILE__, function() {
     if (!wpb_check_requirements()) {
         deactivate_plugins(WPB_PLUGIN_BASENAME);
         wp_die(
-            esc_html__('WP Product Builder cannot be activated. Please check the server requirements.', 'wp-product-builder'),
+            esc_html__('Nito Product Builder cannot be activated. Please check the server requirements.', 'wp-product-builder'),
             esc_html__('Plugin Activation Error', 'wp-product-builder'),
             ['back_link' => true]
         );
@@ -156,7 +156,7 @@ register_activation_hook(__FILE__, function() {
     if (!wpb_load_autoloader()) {
         deactivate_plugins(WPB_PLUGIN_BASENAME);
         wp_die(
-            esc_html__('WP Product Builder: Autoloader not found.', 'wp-product-builder'),
+            esc_html__('Nito Product Builder: Autoloader not found.', 'wp-product-builder'),
             esc_html__('Plugin Activation Error', 'wp-product-builder'),
             ['back_link' => true]
         );

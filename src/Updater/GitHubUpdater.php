@@ -188,7 +188,7 @@ class GitHubUpdater {
         $latestVersion = ltrim($release['tag_name'] ?? '', 'v');
 
         return (object) [
-            'name' => 'WP Product Builder',
+            'name' => 'Nito Product Builder',
             'slug' => $this->pluginSlug,
             'version' => $latestVersion,
             'author' => '<a href="https://github.com/hanvansolo">Ed Deyzel</a>',

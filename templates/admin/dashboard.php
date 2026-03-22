@@ -15,7 +15,7 @@ $has_claude_key = !empty($credentials['claude_api_key']);
 $has_amazon_keys = !empty($credentials['amazon_access_key']) && !empty($credentials['amazon_secret_key']);
 ?>
 <div class="wrap wpb-admin-wrap">
-    <h1><?php esc_html_e('WP Product Builder', 'wp-product-builder'); ?></h1>
+    <h1><?php esc_html_e('Nito Product Builder', 'wp-product-builder'); ?></h1>
 
     <?php if (!$has_claude_key): ?>
     <div class="notice notice-error">

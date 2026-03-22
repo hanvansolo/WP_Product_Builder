@@ -56,7 +56,7 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
     <?php if ($is_welcome): ?>
     <div class="notice notice-info is-dismissible">
         <p>
-            <strong><?php esc_html_e('Welcome to WP Product Builder!', 'wp-product-builder'); ?></strong>
+            <strong><?php esc_html_e('Welcome to Nito Product Builder!', 'wp-product-builder'); ?></strong>
             <?php esc_html_e('Please configure your API keys below to get started.', 'wp-product-builder'); ?>
         </p>
     </div>

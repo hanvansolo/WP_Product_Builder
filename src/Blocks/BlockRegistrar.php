@@ -60,7 +60,7 @@ class BlockRegistrar {
         return array_merge([
             [
                 'slug' => 'wp-product-builder',
-                'title' => __('WP Product Builder', 'wp-product-builder'),
+                'title' => __('Nito Product Builder', 'wp-product-builder'),
                 'icon' => 'cart',
             ],
         ], $categories);

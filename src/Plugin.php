@@ -333,6 +333,10 @@ final class Plugin {
 
         if (version_compare($current_version, $this->version, '<')) {
             Database\Migrator::migrate();
+
+            // Re-register capabilities on upgrade (in case they were lost)
+            Activator::ensureCapabilities();
+
             update_option('wpb_db_version', $this->version);
         }
     }
