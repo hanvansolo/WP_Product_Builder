@@ -188,11 +188,39 @@ class AmazonScraper {
             }
 
             if (str_contains($html, 'captcha') || str_contains($html, 'robot')) {
-                error_log('WPB Scraper: Amazon search blocked by CAPTCHA');
+                error_log('WPB Scraper: Amazon CAPTCHA detected');
                 return [];
             }
 
-            return $this->parseSearchResults($html, $maxResults);
+            // Try DOM-based parsing first
+            $results = $this->parseSearchResults($html, $maxResults);
+            if (!empty($results)) {
+                return $results;
+            }
+
+            // Fallback: extract ASINs with regex and scrape each product
+            preg_match_all('/data-asin="([A-Z0-9]{10})"/', $html, $matches);
+            $asins = array_unique($matches[1] ?? []);
+
+            if (empty($asins)) {
+                // Try /dp/ pattern
+                preg_match_all('/\/dp\/([A-Z0-9]{10})/', $html, $matches2);
+                $asins = array_unique($matches2[1] ?? []);
+            }
+
+            if (empty($asins)) {
+                return [];
+            }
+
+            $products = [];
+            foreach (array_slice($asins, 0, $maxResults) as $asin) {
+                $product = $this->scrapeProduct($asin);
+                if ($product) {
+                    $products[] = $product;
+                }
+            }
+
+            return $products;
 
         } catch (\Exception $e) {
             error_log('WPB Scraper Search Error: ' . $e->getMessage());
@@ -207,10 +235,24 @@ class AmazonScraper {
      * @return string|null HTML content or null
      */
     private function fetchPage(string $url): ?string {
+        // Language headers based on marketplace
+        $langHeaders = [
+            'US' => 'en-US,en;q=0.9',
+            'UK' => 'en-GB,en;q=0.9',
+            'DE' => 'de-DE,de;q=0.9,en;q=0.5',
+            'FR' => 'fr-FR,fr;q=0.9,en;q=0.5',
+            'CA' => 'en-CA,en;q=0.9',
+            'JP' => 'ja-JP,ja;q=0.9,en;q=0.5',
+            'IT' => 'it-IT,it;q=0.9,en;q=0.5',
+            'ES' => 'es-ES,es;q=0.9,en;q=0.5',
+            'AU' => 'en-AU,en;q=0.9',
+        ];
+
         $headers = [
             'User-Agent' => $this->getRandomUserAgent(),
-            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language' => 'en-US,en;q=0.5',
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language' => $langHeaders[$this->marketplace] ?? 'en-US,en;q=0.9',
+            'Accept-Encoding' => 'gzip, deflate, br',
             'DNT' => '1',
             'Connection' => 'keep-alive',
             'Upgrade-Insecure-Requests' => '1',
@@ -218,6 +260,9 @@ class AmazonScraper {
             'Sec-Fetch-Mode' => 'navigate',
             'Sec-Fetch-Site' => 'none',
             'Sec-Fetch-User' => '?1',
+            'Sec-CH-UA' => '"Chromium";v="120", "Google Chrome";v="120", "Not=A?Brand";v="99"',
+            'Sec-CH-UA-Mobile' => '?0',
+            'Sec-CH-UA-Platform' => '"Windows"',
             'Cache-Control' => 'max-age=0',
         ];
 
