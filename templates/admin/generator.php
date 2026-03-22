@@ -100,10 +100,19 @@ $has_api_keys = !empty($credentials['claude_api_key']);
             </p>
 
             <div class="wpb-product-search">
+                <div class="wpb-network-selector">
+                    <label for="wpb-network-select"><?php esc_html_e('Affiliate Network:', 'wp-product-builder'); ?></label>
+                    <select id="wpb-network-select">
+                        <option value="amazon"><?php esc_html_e('Amazon', 'wp-product-builder'); ?></option>
+                        <option value="cj"><?php esc_html_e('CJ Affiliate', 'wp-product-builder'); ?></option>
+                        <option value="awin"><?php esc_html_e('Awin', 'wp-product-builder'); ?></option>
+                    </select>
+                </div>
+
                 <div class="wpb-search-box">
                     <input type="text"
                            id="wpb-product-search"
-                           placeholder="<?php esc_attr_e('Search Amazon products...', 'wp-product-builder'); ?>"
+                           placeholder="<?php esc_attr_e('Search products...', 'wp-product-builder'); ?>"
                            class="regular-text">
                     <button type="button" class="button" id="wpb-search-btn">
                         <span class="dashicons dashicons-search"></span>
@@ -112,10 +121,10 @@ $has_api_keys = !empty($credentials['claude_api_key']);
                 </div>
 
                 <div class="wpb-asin-input">
-                    <label for="wpb-asin-direct"><?php esc_html_e('Or enter ASIN directly:', 'wp-product-builder'); ?></label>
+                    <label for="wpb-asin-direct"><?php esc_html_e('Or enter product ID directly:', 'wp-product-builder'); ?></label>
                     <input type="text"
                            id="wpb-asin-direct"
-                           placeholder="B08N5WRWNW"
+                           placeholder="<?php esc_attr_e('Enter ASIN (e.g., B08N5WRWNW)', 'wp-product-builder'); ?>"
                            class="regular-text">
                     <button type="button" class="button" id="wpb-add-asin-btn">
                         <?php esc_html_e('Add Product', 'wp-product-builder'); ?>

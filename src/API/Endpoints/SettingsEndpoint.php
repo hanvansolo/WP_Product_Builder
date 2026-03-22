@@ -12,6 +12,8 @@ namespace WPProductBuilder\API\Endpoints;
 use WPProductBuilder\Encryption\EncryptionService;
 use WPProductBuilder\API\ClaudeClient;
 use WPProductBuilder\API\AmazonClient;
+use WPProductBuilder\API\CJClient;
+use WPProductBuilder\API\AwinClient;
 use WPProductBuilder\Database\Repositories\ProductRepository;
 use WP_REST_Controller;
 use WP_REST_Server;
@@ -56,7 +58,7 @@ class SettingsEndpoint extends WP_REST_Controller {
                     'api' => [
                         'required' => true,
                         'type' => 'string',
-                        'enum' => ['claude', 'amazon'],
+                        'enum' => ['claude', 'amazon', 'cj', 'awin'],
                     ],
                 ],
             ],
@@ -133,6 +135,10 @@ class SettingsEndpoint extends WP_REST_Controller {
                 'amazon_access_key_set' => !empty($credentials['amazon_access_key']),
                 'amazon_secret_key_set' => !empty($credentials['amazon_secret_key']),
                 'amazon_partner_tag' => $credentials['amazon_partner_tag'] ?? '',
+                'cj_api_key_set' => !empty($credentials['cj_api_key']),
+                'cj_website_id' => $credentials['cj_website_id'] ?? '',
+                'awin_api_key_set' => !empty($credentials['awin_api_key']),
+                'awin_publisher_id' => $credentials['awin_publisher_id'] ?? '',
             ],
         ];
 
@@ -169,6 +175,24 @@ class SettingsEndpoint extends WP_REST_Controller {
 
         if (isset($params['amazon_partner_tag'])) {
             $credentials['amazon_partner_tag'] = sanitize_text_field($params['amazon_partner_tag']);
+        }
+
+        // CJ Affiliate credentials
+        if (!empty($params['cj_api_key'])) {
+            $credentials['cj_api_key'] = $encryption->encrypt($params['cj_api_key']);
+        }
+
+        if (isset($params['cj_website_id'])) {
+            $credentials['cj_website_id'] = sanitize_text_field($params['cj_website_id']);
+        }
+
+        // Awin credentials
+        if (!empty($params['awin_api_key'])) {
+            $credentials['awin_api_key'] = $encryption->encrypt($params['awin_api_key']);
+        }
+
+        if (isset($params['awin_publisher_id'])) {
+            $credentials['awin_publisher_id'] = sanitize_text_field($params['awin_publisher_id']);
         }
 
         // Handle settings
@@ -233,6 +257,16 @@ class SettingsEndpoint extends WP_REST_Controller {
             $secret_key = $request->get_param('secret_key');
             $partner_tag = $request->get_param('partner_tag');
             $client = new AmazonClient($access_key ?: null, $secret_key ?: null, $partner_tag ?: null);
+            $result = $client->testConnection();
+        } elseif ($api === 'cj') {
+            $cj_api_key = $request->get_param('cj_api_key');
+            $cj_website_id = $request->get_param('cj_website_id');
+            $client = new CJClient($cj_api_key ?: null, $cj_website_id ?: null);
+            $result = $client->testConnection();
+        } elseif ($api === 'awin') {
+            $awin_api_key = $request->get_param('awin_api_key');
+            $awin_publisher_id = $request->get_param('awin_publisher_id');
+            $client = new AwinClient($awin_api_key ?: null, $awin_publisher_id ?: null);
             $result = $client->testConnection();
         } else {
             return new WP_Error(

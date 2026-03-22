@@ -14,6 +14,11 @@ namespace WPProductBuilder\Database;
  */
 class Migrator {
     /**
+     * Current database schema version
+     */
+    public const DB_VERSION = '2.0';
+
+    /**
      * Run all migrations
      */
     public static function migrate(): void {
@@ -51,7 +56,8 @@ class Migrator {
         $product_cache_table = $wpdb->prefix . 'wpb_product_cache';
         $product_cache_sql = "CREATE TABLE {$product_cache_table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            asin VARCHAR(20) NOT NULL,
+            asin VARCHAR(100) NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             marketplace VARCHAR(10) NOT NULL DEFAULT 'US',
             product_data LONGTEXT NOT NULL,
             title VARCHAR(500) DEFAULT NULL,
@@ -66,7 +72,8 @@ class Migrator {
             expires_at DATETIME NOT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_asin_marketplace (asin, marketplace),
+            UNIQUE KEY idx_asin_network_marketplace (asin, network, marketplace),
+            KEY idx_network (network),
             KEY idx_expires_at (expires_at),
             KEY idx_last_fetched (last_fetched)
         ) {$charset_collate};";
@@ -132,7 +139,8 @@ class Migrator {
         $import_queue_table = $wpdb->prefix . 'wpb_import_queue';
         $import_queue_sql = "CREATE TABLE {$import_queue_table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            asin VARCHAR(20) NOT NULL,
+            asin VARCHAR(100) NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             job_id BIGINT(20) UNSIGNED DEFAULT NULL,
             status VARCHAR(20) DEFAULT 'pending',
             options LONGTEXT DEFAULT NULL,
@@ -143,6 +151,7 @@ class Migrator {
             completed_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_asin (asin),
+            KEY idx_network (network),
             KEY idx_job_id (job_id),
             KEY idx_status (status)
         ) {$charset_collate};";
@@ -151,7 +160,8 @@ class Migrator {
         $import_log_table = $wpdb->prefix . 'wpb_import_log';
         $import_log_sql = "CREATE TABLE {$import_log_table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            asin VARCHAR(20) NOT NULL,
+            asin VARCHAR(100) NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             product_id BIGINT(20) UNSIGNED DEFAULT NULL,
             action VARCHAR(50) NOT NULL,
             status VARCHAR(20) NOT NULL,
@@ -161,6 +171,7 @@ class Migrator {
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY idx_asin (asin),
+            KEY idx_network (network),
             KEY idx_product_id (product_id),
             KEY idx_action (action),
             KEY idx_created_at (created_at)
@@ -194,6 +205,7 @@ class Migrator {
             job_id BIGINT(20) UNSIGNED NOT NULL,
             title VARCHAR(255) NOT NULL,
             asins LONGTEXT NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             options LONGTEXT DEFAULT NULL,
             status VARCHAR(20) DEFAULT 'pending',
             post_id BIGINT(20) UNSIGNED DEFAULT NULL,
@@ -205,6 +217,7 @@ class Migrator {
             completed_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             KEY idx_job_id (job_id),
+            KEY idx_network (network),
             KEY idx_status (status),
             KEY idx_scheduled_at (scheduled_at)
         ) {$charset_collate};";
@@ -213,7 +226,8 @@ class Migrator {
         $product_stats_table = $wpdb->prefix . 'wpb_product_stats';
         $product_stats_sql = "CREATE TABLE {$product_stats_table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            asin VARCHAR(20) NOT NULL,
+            asin VARCHAR(100) NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             post_id BIGINT(20) UNSIGNED DEFAULT NULL,
             views INT(11) DEFAULT 0,
             clicks INT(11) DEFAULT 0,
@@ -223,8 +237,9 @@ class Migrator {
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_asin_post_date (asin, post_id, date_recorded),
+            UNIQUE KEY idx_asin_network_post_date (asin, network, post_id, date_recorded),
             KEY idx_asin (asin),
+            KEY idx_network (network),
             KEY idx_post_id (post_id),
             KEY idx_date_recorded (date_recorded)
         ) {$charset_collate};";
@@ -233,7 +248,8 @@ class Migrator {
         $click_tracking_table = $wpdb->prefix . 'wpb_click_tracking';
         $click_tracking_sql = "CREATE TABLE {$click_tracking_table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            asin VARCHAR(20) NOT NULL,
+            asin VARCHAR(100) NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             post_id BIGINT(20) UNSIGNED DEFAULT NULL,
             user_id BIGINT(20) UNSIGNED DEFAULT NULL,
             ip_hash VARCHAR(64) DEFAULT NULL,
@@ -243,6 +259,7 @@ class Migrator {
             clicked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY idx_asin (asin),
+            KEY idx_network (network),
             KEY idx_post_id (post_id),
             KEY idx_clicked_at (clicked_at)
         ) {$charset_collate};";
@@ -251,7 +268,8 @@ class Migrator {
         $woo_sync_table = $wpdb->prefix . 'wpb_woo_sync';
         $woo_sync_sql = "CREATE TABLE {$woo_sync_table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
-            asin VARCHAR(20) NOT NULL,
+            asin VARCHAR(100) NOT NULL,
+            network VARCHAR(20) NOT NULL DEFAULT 'amazon',
             product_id BIGINT(20) UNSIGNED NOT NULL,
             last_synced DATETIME NOT NULL,
             sync_fields LONGTEXT DEFAULT NULL,
@@ -260,7 +278,7 @@ class Migrator {
             next_sync DATETIME DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_asin (asin),
+            UNIQUE KEY idx_asin_network (asin, network),
             UNIQUE KEY idx_product_id (product_id),
             KEY idx_next_sync (next_sync),
             KEY idx_auto_sync (auto_sync)
@@ -285,6 +303,102 @@ class Migrator {
 
         // Insert default templates
         self::insertDefaultTemplates();
+
+        // Run version-specific migrations for existing installs
+        self::runMigrations();
+
+        // Update DB version
+        update_option('wpb_db_version', self::DB_VERSION);
+    }
+
+    /**
+     * Run incremental migrations based on current DB version
+     */
+    private static function runMigrations(): void {
+        $currentVersion = get_option('wpb_db_version', '1.0');
+
+        if (version_compare($currentVersion, '2.0', '<')) {
+            self::migrateToV2();
+        }
+    }
+
+    /**
+     * V2 Migration: Add network support columns to existing tables
+     *
+     * For fresh installs, the CREATE TABLE statements already include these columns.
+     * This migration handles upgrades from v1.x where tables already exist.
+     */
+    private static function migrateToV2(): void {
+        global $wpdb;
+
+        // Widen asin columns and add network columns to existing tables
+        $tables_to_update = [
+            'wpb_product_cache',
+            'wpb_import_queue',
+            'wpb_import_log',
+            'wpb_product_stats',
+            'wpb_click_tracking',
+            'wpb_woo_sync',
+        ];
+
+        foreach ($tables_to_update as $table) {
+            $full_table = $wpdb->prefix . $table;
+
+            // Check if network column already exists
+            $column_exists = $wpdb->get_results(
+                $wpdb->prepare(
+                    "SHOW COLUMNS FROM {$full_table} LIKE %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                    'network'
+                )
+            );
+
+            if (empty($column_exists)) {
+                // Widen asin column to support longer product IDs
+                $wpdb->query("ALTER TABLE {$full_table} MODIFY asin VARCHAR(100) NOT NULL"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+                // Add network column
+                $wpdb->query("ALTER TABLE {$full_table} ADD COLUMN network VARCHAR(20) NOT NULL DEFAULT 'amazon' AFTER asin"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+                // Add network index
+                $wpdb->query("ALTER TABLE {$full_table} ADD KEY idx_network (network)"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            }
+        }
+
+        // Update product_cache unique key: (asin, marketplace) -> (asin, network, marketplace)
+        $product_cache = $wpdb->prefix . 'wpb_product_cache';
+        $existing_keys = $wpdb->get_results("SHOW INDEX FROM {$product_cache} WHERE Key_name = 'idx_asin_marketplace'"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if (!empty($existing_keys)) {
+            $wpdb->query("ALTER TABLE {$product_cache} DROP KEY idx_asin_marketplace"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE {$product_cache} ADD UNIQUE KEY idx_asin_network_marketplace (asin, network, marketplace)"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        }
+
+        // Update product_stats unique key
+        $product_stats = $wpdb->prefix . 'wpb_product_stats';
+        $existing_keys = $wpdb->get_results("SHOW INDEX FROM {$product_stats} WHERE Key_name = 'idx_asin_post_date'"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if (!empty($existing_keys)) {
+            $wpdb->query("ALTER TABLE {$product_stats} DROP KEY idx_asin_post_date"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE {$product_stats} ADD UNIQUE KEY idx_asin_network_post_date (asin, network, post_id, date_recorded)"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        }
+
+        // Update woo_sync unique key
+        $woo_sync = $wpdb->prefix . 'wpb_woo_sync';
+        $existing_keys = $wpdb->get_results("SHOW INDEX FROM {$woo_sync} WHERE Key_name = 'idx_asin'"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        if (!empty($existing_keys)) {
+            $wpdb->query("ALTER TABLE {$woo_sync} DROP KEY idx_asin"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $wpdb->query("ALTER TABLE {$woo_sync} ADD UNIQUE KEY idx_asin_network (asin, network)"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        }
+
+        // Add network column to content_queue
+        $content_queue = $wpdb->prefix . 'wpb_content_queue';
+        $column_exists = $wpdb->get_results(
+            $wpdb->prepare(
+                "SHOW COLUMNS FROM {$content_queue} LIKE %s", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+                'network'
+            )
+        );
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE {$content_queue} ADD COLUMN network VARCHAR(20) NOT NULL DEFAULT 'amazon' AFTER asins"); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+        }
     }
 
     /**

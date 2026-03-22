@@ -59,9 +59,11 @@ class AutoImporter {
 
         $defaults = [
             'name' => __('Unnamed Job', 'wp-product-builder'),
-            'type' => 'keyword', // keyword, category, asin_list
+            'type' => 'keyword', // keyword, category, asin_list, product_id_list
+            'network' => 'amazon',
             'keywords' => [],
             'asins' => [],
+            'product_ids' => [],
             'category' => '',
             'max_products' => 10,
             'woo_category_id' => null,
@@ -105,6 +107,7 @@ class AutoImporter {
         }
 
         $config = json_decode($job['config'], true);
+        $network = $config['network'] ?? 'amazon';
 
         // Find products based on job type
         $products = [];
@@ -112,20 +115,20 @@ class AutoImporter {
         switch ($job['type']) {
             case 'keyword':
                 foreach ($config['keywords'] as $keyword) {
-                    $results = $this->productService->searchProducts($keyword, $config['max_products']);
+                    $results = $this->productService->searchProducts($keyword, $config['max_products'], $network);
                     $products = array_merge($products, $results);
                 }
                 break;
 
             case 'asin_list':
-                $asins = $config['asins'] ?? [];
-                $productData = $this->productService->getMultipleProducts($asins);
+            case 'product_id_list':
+                $ids = $config['product_ids'] ?? $config['asins'] ?? [];
+                $productData = $this->productService->getMultipleProducts($ids, $network);
                 $products = array_values($productData);
                 break;
 
             case 'category':
-                // Search by category name
-                $results = $this->productService->searchProducts($config['category'], $config['max_products']);
+                $results = $this->productService->searchProducts($config['category'], $config['max_products'], $network);
                 $products = $results;
                 break;
         }
@@ -136,8 +139,9 @@ class AutoImporter {
         // Queue products for import
         $queued = 0;
         foreach ($products as $product) {
-            if (!empty($product['asin'])) {
-                $this->queueProduct($product['asin'], $jobId, $config);
+            $pid = $product['product_id'] ?? $product['asin'] ?? '';
+            if (!empty($pid)) {
+                $this->queueProduct($pid, $jobId, $config, $network);
                 $queued++;
             }
         }
@@ -159,22 +163,26 @@ class AutoImporter {
     /**
      * Queue a product for import
      */
-    public function queueProduct(string $asin, int $jobId, array $options = []): bool {
+    public function queueProduct(string $productId, int $jobId, array $options = [], string $network = 'amazon'): bool {
         global $wpdb;
 
         // Check if already in queue
         $existing = $wpdb->get_var($wpdb->prepare(
             "SELECT id FROM {$this->queueTable}
-             WHERE asin = %s AND status IN ('pending', 'processing')",
-            $asin
+             WHERE asin = %s AND network = %s AND status IN ('pending', 'processing')",
+            $productId,
+            $network
         ));
 
         if ($existing) {
             return false;
         }
 
+        $pid = $network === 'amazon' ? strtoupper($productId) : $productId;
+
         return (bool) $wpdb->insert($this->queueTable, [
-            'asin' => strtoupper($asin),
+            'asin' => $pid,
+            'network' => $network,
             'job_id' => $jobId,
             'status' => 'pending',
             'options' => json_encode($options),
@@ -217,9 +225,10 @@ class AutoImporter {
             );
 
             $options = json_decode($item['options'], true) ?? [];
+            $network = $item['network'] ?? 'amazon';
 
             // Import the product
-            $productId = $this->importer->importProduct($item['asin'], $options);
+            $productId = $this->importer->importProduct($item['asin'], $options, $network);
 
             if (is_wp_error($productId)) {
                 // Mark as failed

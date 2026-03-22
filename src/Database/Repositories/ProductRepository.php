@@ -27,18 +27,31 @@ class ProductRepository {
     }
 
     /**
-     * Get product by ASIN
+     * Get product by ASIN (backward-compat wrapper)
      *
      * @param string $asin Product ASIN
      * @param string $marketplace Marketplace code
      * @return array|null
      */
     public function getByAsin(string $asin, string $marketplace = 'US'): ?array {
+        return $this->getByProductId($asin, 'amazon', $marketplace);
+    }
+
+    /**
+     * Get product by network-specific product ID
+     *
+     * @param string $productId Product identifier
+     * @param string $network Network name (amazon, cj, awin)
+     * @param string $marketplace Marketplace code
+     * @return array|null
+     */
+    public function getByProductId(string $productId, string $network = 'amazon', string $marketplace = 'US'): ?array {
         global $wpdb;
 
         $result = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$this->table} WHERE asin = %s AND marketplace = %s",
-            $asin,
+            "SELECT * FROM {$this->table} WHERE asin = %s AND network = %s AND marketplace = %s",
+            $productId,
+            $network,
             $marketplace
         ), ARRAY_A);
 
@@ -57,9 +70,12 @@ class ProductRepository {
 
         $now = current_time('mysql');
         $expires = date('Y-m-d H:i:s', time() + $ttl);
+        $productId = $product['product_id'] ?? $product['asin'];
+        $network = $product['network'] ?? 'amazon';
 
         $data = [
-            'asin' => $product['asin'],
+            'asin' => $productId,
+            'network' => $network,
             'marketplace' => $product['marketplace'] ?? 'US',
             'product_data' => json_encode($product),
             'title' => $product['title'] ?? null,
@@ -75,7 +91,7 @@ class ProductRepository {
         ];
 
         // Check if exists
-        $existing = $this->getByAsin($product['asin'], $product['marketplace'] ?? 'US');
+        $existing = $this->getByProductId($productId, $network, $product['marketplace'] ?? 'US');
 
         if ($existing) {
             // Update
@@ -83,7 +99,8 @@ class ProductRepository {
                 $this->table,
                 $data,
                 [
-                    'asin' => $product['asin'],
+                    'asin' => $productId,
+                    'network' => $network,
                     'marketplace' => $product['marketplace'] ?? 'US',
                 ]
             );
@@ -96,24 +113,36 @@ class ProductRepository {
     }
 
     /**
-     * Get multiple products by ASINs
+     * Get multiple products by ASINs (backward-compat wrapper)
      *
      * @param array $asins Array of ASINs
      * @param string $marketplace Marketplace code
      * @return array
      */
     public function getMultipleByAsins(array $asins, string $marketplace = 'US'): array {
+        return $this->getMultipleByProductIds($asins, 'amazon', $marketplace);
+    }
+
+    /**
+     * Get multiple products by network-specific product IDs
+     *
+     * @param array $productIds Array of product identifiers
+     * @param string $network Network name
+     * @param string $marketplace Marketplace code
+     * @return array Products keyed by product ID
+     */
+    public function getMultipleByProductIds(array $productIds, string $network = 'amazon', string $marketplace = 'US'): array {
         global $wpdb;
 
-        if (empty($asins)) {
+        if (empty($productIds)) {
             return [];
         }
 
-        $placeholders = implode(',', array_fill(0, count($asins), '%s'));
-        $params = array_merge($asins, [$marketplace]);
+        $placeholders = implode(',', array_fill(0, count($productIds), '%s'));
+        $params = array_merge($productIds, [$network, $marketplace]);
 
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$this->table} WHERE asin IN ({$placeholders}) AND marketplace = %s",
+            "SELECT * FROM {$this->table} WHERE asin IN ({$placeholders}) AND network = %s AND marketplace = %s",
             ...$params
         ), ARRAY_A);
 
@@ -173,12 +202,25 @@ class ProductRepository {
      *
      * @param string $search Search term
      * @param int $limit Limit
+     * @param string|null $network Optional network filter
      * @return array
      */
-    public function search(string $search, int $limit = 20): array {
+    public function search(string $search, int $limit = 20, ?string $network = null): array {
         global $wpdb;
 
         $search = '%' . $wpdb->esc_like($search) . '%';
+
+        if ($network !== null) {
+            return $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$this->table}
+                 WHERE title LIKE %s AND network = %s AND expires_at > NOW()
+                 ORDER BY last_fetched DESC
+                 LIMIT %d",
+                $search,
+                $network,
+                $limit
+            ), ARRAY_A);
+        }
 
         return $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$this->table}

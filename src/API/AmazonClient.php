@@ -18,7 +18,7 @@ use WP_Error;
 /**
  * Amazon PA-API client for product data
  */
-class AmazonClient {
+class AmazonClient implements ProductNetworkInterface {
     /**
      * Marketplace configurations
      */
@@ -126,6 +126,20 @@ class AmazonClient {
         $this->cacheDuration = ($settings['cache_duration_hours'] ?? 24) * HOUR_IN_SECONDS;
 
         $this->productRepo = new ProductRepository();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getNetworkName(): string {
+        return 'amazon';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getNetworkLabel(): string {
+        return 'Amazon';
     }
 
     /**
@@ -459,7 +473,9 @@ class AmazonClient {
         }
 
         return [
+            'product_id' => $item['ASIN'],
             'asin' => $item['ASIN'],
+            'network' => 'amazon',
             'title' => $info['Title']['DisplayValue'] ?? '',
             'price' => $price,
             'currency' => self::MARKETPLACES[$this->marketplace]['currency'] ?? 'USD',
@@ -472,6 +488,8 @@ class AmazonClient {
             'brand' => $info['ByLineInfo']['Brand']['DisplayValue'] ?? null,
             'category' => $info['Classifications']['Binding']['DisplayValue'] ?? null,
             'marketplace' => $this->marketplace,
+            'merchant_name' => null,
+            'source' => 'amazon_api',
             'fetched_at' => current_time('mysql'),
         ];
     }

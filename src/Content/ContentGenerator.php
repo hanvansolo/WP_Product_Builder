@@ -66,11 +66,12 @@ class ContentGenerator {
      * Generate content
      *
      * @param string $type Content type
-     * @param array $productAsins Array of product ASINs
+     * @param array $productIds Array of product identifiers (ASINs for Amazon, IDs for other networks)
      * @param array $options Generation options
+     * @param string $network Affiliate network (amazon, cj, awin)
      * @return array Result with content and metadata
      */
-    public function generate(string $type, array $productAsins, array $options = []): array {
+    public function generate(string $type, array $productIds, array $options = [], string $network = 'amazon'): array {
         // Validate content type
         if (!isset($this->contentTypes[$type])) {
             return [
@@ -81,8 +82,8 @@ class ContentGenerator {
 
         $contentType = $this->contentTypes[$type];
 
-        // Fetch product data using service (with scraper fallback)
-        $products = $this->productService->getMultipleProducts($productAsins);
+        // Fetch product data using service (with scraper fallback for Amazon)
+        $products = $this->productService->getMultipleProducts($productIds, $network);
 
         if (empty($products)) {
             return [
@@ -272,7 +273,10 @@ class ContentGenerator {
      * @return string HTML
      */
     private function renderProductBox(array $product): string {
-        $affiliateUrl = $product['affiliate_url'] ?? $this->buildAffiliateUrl($product['asin'] ?? '');
+        $affiliateUrl = $product['affiliate_url'] ?? '';
+        if (empty($affiliateUrl) && ($product['network'] ?? 'amazon') === 'amazon') {
+            $affiliateUrl = $this->buildAffiliateUrl($product['asin'] ?? $product['product_id'] ?? '');
+        }
 
         $html = '<div class="wpb-product-box">';
 
@@ -339,11 +343,24 @@ class ContentGenerator {
      * @return string HTML
      */
     private function renderBuyButton(array $product): string {
-        $url = $product['affiliate_url'] ?? $this->buildAffiliateUrl($product['asin']);
+        $network = $product['network'] ?? 'amazon';
+        $url = $product['affiliate_url'] ?? '';
+        if (empty($url) && $network === 'amazon') {
+            $url = $this->buildAffiliateUrl($product['asin'] ?? $product['product_id'] ?? '');
+        }
+
+        // Network-aware button text
+        $buttonText = match ($network) {
+            'cj', 'awin' => !empty($product['merchant_name'])
+                ? sprintf(__('Check Price at %s', 'wp-product-builder'), $product['merchant_name'])
+                : __('View Deal', 'wp-product-builder'),
+            default => __('Check Price on Amazon', 'wp-product-builder'),
+        };
+
         return sprintf(
             '<a href="%s" class="wpb-buy-button" rel="nofollow sponsored" target="_blank">%s</a>',
             esc_url($url),
-            esc_html__('Check Price on Amazon', 'wp-product-builder')
+            esc_html($buttonText)
         );
     }
 

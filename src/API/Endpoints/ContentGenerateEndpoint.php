@@ -54,6 +54,12 @@ class ContentGenerateEndpoint extends WP_REST_Controller {
                             'type' => 'string',
                         ],
                     ],
+                    'network' => [
+                        'required' => false,
+                        'type' => 'string',
+                        'default' => 'amazon',
+                        'enum' => ['amazon', 'cj', 'awin'],
+                    ],
                     'options' => [
                         'required' => false,
                         'type' => 'object',
@@ -167,21 +173,28 @@ class ContentGenerateEndpoint extends WP_REST_Controller {
     public function generate_content(WP_REST_Request $request): WP_REST_Response|WP_Error {
         $type = $request->get_param('type');
         $products = $request->get_param('products');
+        $network = $request->get_param('network') ?? 'amazon';
         $options = $request->get_param('options') ?? [];
 
-        // Sanitize ASINs
-        $products = array_map(function($asin) {
-            return strtoupper(preg_replace('/[^A-Z0-9]/i', '', $asin));
-        }, $products);
+        // Sanitize product IDs based on network
+        if ($network === 'amazon') {
+            $products = array_map(function($asin) {
+                return strtoupper(preg_replace('/[^A-Z0-9]/i', '', $asin));
+            }, $products);
 
-        $products = array_filter($products, function($asin) {
-            return strlen($asin) === 10;
-        });
+            $products = array_filter($products, function($asin) {
+                return strlen($asin) === 10;
+            });
+        } else {
+            // For CJ/Awin, just sanitize as text
+            $products = array_map('sanitize_text_field', $products);
+            $products = array_filter($products);
+        }
 
         if (empty($products)) {
             return new WP_Error(
                 'invalid_products',
-                __('No valid product ASINs provided.', 'wp-product-builder'),
+                __('No valid product identifiers provided.', 'wp-product-builder'),
                 ['status' => 400]
             );
         }
@@ -210,7 +223,7 @@ class ContentGenerateEndpoint extends WP_REST_Controller {
         }
 
         $generator = new ContentGenerator();
-        $result = $generator->generate($type, $products, $options);
+        $result = $generator->generate($type, $products, $options, $network);
 
         if (!$result['success']) {
             return new WP_Error(

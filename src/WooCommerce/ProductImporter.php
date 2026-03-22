@@ -52,23 +52,24 @@ class ProductImporter {
     /**
      * Import single product
      *
-     * @param string $asin Product ASIN
+     * @param string $productId Product identifier (ASIN for Amazon, network-specific ID for others)
      * @param array $options Import options
+     * @param string $network Affiliate network
      * @return int|WP_Error Product ID or error
      */
-    public function importProduct(string $asin, array $options = []): int|\WP_Error {
+    public function importProduct(string $productId, array $options = [], string $network = 'amazon'): int|\WP_Error {
         if (!self::isWooCommerceActive()) {
             return new \WP_Error('woo_not_active', __('WooCommerce is not active.', 'wp-product-builder'));
         }
 
         // Check if already imported
-        $existingId = $this->getExistingProductId($asin);
+        $existingId = $this->getExistingProductId($productId, $network);
         if ($existingId && empty($options['force_reimport'])) {
             return $existingId;
         }
 
         // Fetch product data
-        $productData = $this->productService->getProduct($asin);
+        $productData = $this->productService->getProduct($productId, $network);
 
         if (!$productData) {
             return new \WP_Error('fetch_failed', __('Could not fetch product data.', 'wp-product-builder'));
@@ -118,7 +119,14 @@ class ProductImporter {
 
         // External/Affiliate settings
         $product->set_product_url($productData['affiliate_url']);
-        $product->set_button_text($this->settings['button_text'] ?? __('Buy on Amazon', 'wp-product-builder'));
+        $network = $productData['network'] ?? 'amazon';
+        $buttonText = match ($network) {
+            'cj', 'awin' => !empty($productData['merchant_name'])
+                ? sprintf(__('Buy at %s', 'wp-product-builder'), $productData['merchant_name'])
+                : __('View Deal', 'wp-product-builder'),
+            default => $this->settings['button_text'] ?? __('Buy on Amazon', 'wp-product-builder'),
+        };
+        $product->set_button_text($buttonText);
 
         // Price
         if (!empty($productData['price'])) {
@@ -142,8 +150,10 @@ class ProductImporter {
             $product->set_short_description($shortDesc);
         }
 
-        // SKU (ASIN)
-        $product->set_sku('ASIN-' . $productData['asin']);
+        // SKU (network-prefixed product ID)
+        $skuId = $productData['product_id'] ?? $productData['asin'] ?? '';
+        $skuNetwork = strtoupper($productData['network'] ?? 'amazon');
+        $product->set_sku($skuNetwork . '-' . $skuId);
 
         // Categories
         if (!empty($options['category_id'])) {
@@ -167,11 +177,11 @@ class ProductImporter {
             $this->setProductImage($productId, $productData['image_url'], $productData['title']);
         }
 
-        // Save Amazon metadata
+        // Save product metadata
         $this->saveProductMeta($productId, $productData);
 
         // Track import
-        $this->trackImport($productId, $productData['asin']);
+        $this->trackImport($productId, $productData['product_id'] ?? $productData['asin'], $productData['network'] ?? 'amazon');
 
         return $productId;
     }
@@ -250,32 +260,66 @@ class ProductImporter {
     }
 
     /**
-     * Save Amazon-specific metadata
+     * Save product metadata
      */
     private function saveProductMeta(int $productId, array $productData): void {
-        update_post_meta($productId, '_wpb_asin', $productData['asin']);
-        update_post_meta($productId, '_wpb_marketplace', $productData['marketplace']);
-        update_post_meta($productId, '_wpb_amazon_price', $productData['price'] ?? '');
-        update_post_meta($productId, '_wpb_amazon_rating', $productData['rating'] ?? '');
-        update_post_meta($productId, '_wpb_amazon_reviews', $productData['review_count'] ?? '');
+        $networkProductId = $productData['product_id'] ?? $productData['asin'] ?? '';
+        $network = $productData['network'] ?? 'amazon';
+
+        // Generic fields
+        update_post_meta($productId, '_wpb_product_id', $networkProductId);
+        update_post_meta($productId, '_wpb_network', $network);
+        update_post_meta($productId, '_wpb_marketplace', $productData['marketplace'] ?? '');
+        update_post_meta($productId, '_wpb_price', $productData['price'] ?? '');
+        update_post_meta($productId, '_wpb_rating', $productData['rating'] ?? '');
+        update_post_meta($productId, '_wpb_reviews', $productData['review_count'] ?? '');
         update_post_meta($productId, '_wpb_last_sync', current_time('timestamp'));
         update_post_meta($productId, '_wpb_source', $productData['source'] ?? 'unknown');
+
+        if (!empty($productData['merchant_name'])) {
+            update_post_meta($productId, '_wpb_merchant_name', $productData['merchant_name']);
+        }
+
+        // Backward compat: keep _wpb_asin for Amazon products
+        if ($network === 'amazon') {
+            update_post_meta($productId, '_wpb_asin', $productData['asin'] ?? $networkProductId);
+        }
     }
 
     /**
-     * Get existing product ID by ASIN
+     * Get existing product ID by product identifier and network
      */
-    private function getExistingProductId(string $asin): ?int {
+    private function getExistingProductId(string $productId, string $network = 'amazon'): ?int {
         global $wpdb;
 
-        $productId = $wpdb->get_var($wpdb->prepare(
-            "SELECT post_id FROM {$wpdb->postmeta}
-             WHERE meta_key = '_wpb_asin' AND meta_value = %s
+        // Try new meta key first
+        $result = $wpdb->get_var($wpdb->prepare(
+            "SELECT pm1.post_id FROM {$wpdb->postmeta} pm1
+             INNER JOIN {$wpdb->postmeta} pm2 ON pm1.post_id = pm2.post_id
+             WHERE pm1.meta_key = '_wpb_product_id' AND pm1.meta_value = %s
+             AND pm2.meta_key = '_wpb_network' AND pm2.meta_value = %s
              LIMIT 1",
-            $asin
+            $productId,
+            $network
         ));
 
-        return $productId ? (int) $productId : null;
+        if ($result) {
+            return (int) $result;
+        }
+
+        // Backward compat: try old _wpb_asin key for Amazon
+        if ($network === 'amazon') {
+            $result = $wpdb->get_var($wpdb->prepare(
+                "SELECT post_id FROM {$wpdb->postmeta}
+                 WHERE meta_key = '_wpb_asin' AND meta_value = %s
+                 LIMIT 1",
+                $productId
+            ));
+
+            return $result ? (int) $result : null;
+        }
+
+        return null;
     }
 
     /**
@@ -331,7 +375,7 @@ class ProductImporter {
     /**
      * Track product import
      */
-    private function trackImport(int $productId, string $asin): void {
+    private function trackImport(int $productId, string $networkProductId, string $network = 'amazon'): void {
         global $wpdb;
 
         $table = $wpdb->prefix . 'wpb_import_log';
@@ -343,9 +387,13 @@ class ProductImporter {
 
         $wpdb->insert($table, [
             'product_id' => $productId,
-            'asin' => $asin,
-            'imported_at' => current_time('mysql'),
+            'asin' => $networkProductId,
+            'network' => $network,
+            'action' => 'import',
+            'status' => 'completed',
+            'message' => __('Product imported successfully', 'wp-product-builder'),
             'user_id' => get_current_user_id(),
+            'created_at' => current_time('mysql'),
         ]);
     }
 
@@ -402,7 +450,7 @@ class ProductImporter {
      * @param string $asin Product ASIN
      * @return array|WP_Error Updated fields or error
      */
-    public function syncProduct(int $productId, string $asin): array|\WP_Error {
+    public function syncProduct(int $productId, string $asin, string $network = 'amazon'): array|\WP_Error {
         if (!self::isWooCommerceActive()) {
             return new \WP_Error('woo_not_active', __('WooCommerce is not active.', 'wp-product-builder'));
         }
@@ -413,9 +461,9 @@ class ProductImporter {
         }
 
         // Fetch fresh product data
-        $productData = $this->productService->getProduct($asin);
+        $productData = $this->productService->getProduct($asin, $network);
         if (!$productData) {
-            return new \WP_Error('fetch_failed', __('Could not fetch product data from Amazon.', 'wp-product-builder'));
+            return new \WP_Error('fetch_failed', __('Could not fetch product data.', 'wp-product-builder'));
         }
 
         $updatedFields = [];

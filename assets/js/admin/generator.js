@@ -8,6 +8,7 @@
         currentStep: 1,
         maxStep: 5,
         selectedType: null,
+        selectedNetwork: 'amazon',
         selectedProducts: [],
         generatedContent: null,
         historyId: null,
@@ -25,6 +26,9 @@
         bindEvents: function() {
             // Content type selection
             $(document).on('click', '.wpb-content-type-card', this.selectContentType.bind(this));
+
+            // Network selector
+            $(document).on('change', '#wpb-network-select', this.changeNetwork.bind(this));
 
             // Product search
             $('#wpb-search-btn').on('click', this.searchProducts.bind(this));
@@ -109,16 +113,19 @@
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                 },
-                data: { q: query },
+                data: { q: query, network: WPBGenerator.selectedNetwork },
                 success: function(response) {
                     if (response.success && response.products) {
-                        WPBGenerator.displaySearchResults(response.products);
+                        WPBGenerator.displaySearchResults(response.products, response.message);
                     } else {
-                        WPBGenerator.displaySearchResults([]);
+                        WPBGenerator.displaySearchResults([], response.message);
                     }
                 },
                 error: function(xhr) {
-                    WPBAdmin.showNotice('Search failed. Please try again.', 'error', '#wpb-generator-notices');
+                    var message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'Search failed. Please try again.';
+                    WPBAdmin.showNotice(message, 'error', '#wpb-generator-notices');
                 },
                 complete: function() {
                     $button.prop('disabled', false).html('<span class="dashicons dashicons-search"></span> Search');
@@ -129,22 +136,26 @@
         /**
          * Display search results
          */
-        displaySearchResults: function(products) {
+        displaySearchResults: function(products, message) {
             var $results = $('#wpb-search-results');
             var $list = $results.find('.wpb-results-list');
 
             $list.empty();
 
             if (products.length === 0) {
-                $list.html('<p>No products found. Try a different search term.</p>');
+                var msg = message || 'No products found. Try a different search term.';
+                $list.html('<p class="wpb-no-results">' + msg + '</p>');
             } else {
                 products.forEach(function(product) {
+                    var idLabel = product.network === 'amazon' ? 'ASIN' : 'ID';
+                    var idValue = product.product_id || product.asin || '';
                     var html = '<div class="wpb-result-item" data-product=\'' + JSON.stringify(product).replace(/'/g, "&#39;") + '\'>' +
                         '<img src="' + (product.image_url || '') + '" alt="">' +
                         '<div class="wpb-result-item-info">' +
                         '<div class="wpb-result-item-title">' + WPBGenerator.escapeHtml(product.title) + '</div>' +
                         '<div class="wpb-result-item-price">' + (product.price || 'Price not available') + '</div>' +
-                        '<small>ASIN: ' + product.asin + '</small>' +
+                        '<small>' + idLabel + ': ' + WPBGenerator.escapeHtml(idValue) + '</small>' +
+                        (product.merchant_name ? ' <small>via ' + WPBGenerator.escapeHtml(product.merchant_name) + '</small>' : '') +
                         '</div>' +
                         '<button type="button" class="button button-small">Add</button>' +
                         '</div>';
@@ -159,15 +170,28 @@
          * Add ASIN directly
          */
         addAsinDirect: function() {
-            var asin = $('#wpb-asin-direct').val().trim().toUpperCase();
+            var productId = $('#wpb-asin-direct').val().trim();
+            var network = this.selectedNetwork;
 
-            if (!asin || asin.length !== 10) {
-                WPBAdmin.showNotice('Please enter a valid 10-character ASIN.', 'error', '#wpb-generator-notices');
-                return;
+            if (network === 'amazon') {
+                productId = productId.toUpperCase();
+                if (!productId || productId.length !== 10) {
+                    WPBAdmin.showNotice('Please enter a valid 10-character ASIN.', 'error', '#wpb-generator-notices');
+                    return;
+                }
+            } else {
+                if (!productId) {
+                    WPBAdmin.showNotice('Please enter a product ID.', 'error', '#wpb-generator-notices');
+                    return;
+                }
             }
 
             // Check if already added
-            if (this.selectedProducts.some(function(p) { return p.asin === asin; })) {
+            var uniqueKey = network + ':' + productId;
+            if (this.selectedProducts.some(function(p) {
+                var pKey = (p.network || 'amazon') + ':' + (p.product_id || p.asin);
+                return pKey === uniqueKey;
+            })) {
                 WPBAdmin.showNotice('This product is already selected.', 'warning', '#wpb-generator-notices');
                 return;
             }
@@ -176,12 +200,22 @@
             var $button = $('#wpb-add-asin-btn');
             $button.prop('disabled', true).text('Loading...');
 
+            var fetchUrl, fetchData;
+            if (network === 'amazon') {
+                fetchUrl = wpbAdmin.apiUrl + '/products/' + productId;
+                fetchData = { network: network };
+            } else {
+                fetchUrl = wpbAdmin.apiUrl + '/products/get';
+                fetchData = { product_id: productId, network: network };
+            }
+
             $.ajax({
-                url: wpbAdmin.apiUrl + '/products/' + asin,
+                url: fetchUrl,
                 method: 'GET',
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                 },
+                data: fetchData,
                 success: function(response) {
                     if (response.success && response.product) {
                         WPBGenerator.addProduct(response.product);
@@ -224,8 +258,11 @@
                 return;
             }
 
-            // Check if already added
-            if (this.selectedProducts.some(function(p) { return p.asin === product.asin; })) {
+            // Check if already added (use product_id + network as unique key)
+            var newKey = (product.network || 'amazon') + ':' + (product.product_id || product.asin);
+            if (this.selectedProducts.some(function(p) {
+                return (p.network || 'amazon') + ':' + (p.product_id || p.asin) === newKey;
+            })) {
                 WPBAdmin.showNotice('This product is already selected.', 'warning', '#wpb-generator-notices');
                 return;
             }
@@ -238,11 +275,27 @@
          * Remove product from selection
          */
         removeProduct: function(e) {
-            var asin = $(e.currentTarget).data('asin');
+            var removeKey = $(e.currentTarget).data('product-key');
             this.selectedProducts = this.selectedProducts.filter(function(p) {
-                return p.asin !== asin;
+                var key = (p.network || 'amazon') + ':' + (p.product_id || p.asin);
+                return key !== removeKey;
             });
             this.renderSelectedProducts();
+        },
+
+        /**
+         * Change selected network
+         */
+        changeNetwork: function(e) {
+            this.selectedNetwork = $(e.currentTarget).val();
+
+            // Update placeholder text for direct ID input
+            var placeholder = this.selectedNetwork === 'amazon' ? 'Enter ASIN (e.g., B08N5WRWNW)' : 'Enter product ID';
+            $('#wpb-asin-direct').attr('placeholder', placeholder);
+
+            // Clear search results when switching networks
+            $('#wpb-search-results').find('.wpb-results-list').empty();
+            $('#wpb-search-results').hide();
         },
 
         /**
@@ -256,14 +309,18 @@
             $count.text(this.selectedProducts.length);
 
             this.selectedProducts.forEach(function(product) {
+                var idLabel = (product.network || 'amazon') === 'amazon' ? 'ASIN' : 'ID';
+                var idValue = product.product_id || product.asin || '';
+                var productKey = (product.network || 'amazon') + ':' + idValue;
                 var html = '<div class="wpb-selected-item">' +
                     '<img src="' + (product.image_url || '') + '" alt="">' +
                     '<div class="wpb-selected-item-info">' +
                     '<strong>' + WPBGenerator.escapeHtml(product.title) + '</strong>' +
                     '<div>' + (product.price || 'Price not available') + '</div>' +
-                    '<small>ASIN: ' + product.asin + '</small>' +
+                    '<small>' + idLabel + ': ' + WPBGenerator.escapeHtml(idValue) + '</small>' +
+                    (product.merchant_name ? ' <small>via ' + WPBGenerator.escapeHtml(product.merchant_name) + '</small>' : '') +
                     '</div>' +
-                    '<span class="wpb-selected-item-remove dashicons dashicons-no-alt" data-asin="' + product.asin + '"></span>' +
+                    '<span class="wpb-selected-item-remove dashicons dashicons-no-alt" data-product-key="' + WPBGenerator.escapeHtml(productKey) + '"></span>' +
                     '</div>';
                 $list.append(html);
             });
@@ -385,7 +442,8 @@
 
             var data = {
                 type: this.selectedType,
-                products: this.selectedProducts.map(function(p) { return p.asin; }),
+                network: this.selectedNetwork,
+                products: this.selectedProducts.map(function(p) { return p.product_id || p.asin; }),
                 options: options
             };
 

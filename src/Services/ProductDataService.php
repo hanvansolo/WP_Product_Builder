@@ -2,7 +2,7 @@
 /**
  * Product Data Service
  *
- * Unified service for fetching product data from API or Scraper
+ * Unified service for fetching product data from multiple affiliate networks
  *
  * @package WPProductBuilder
  */
@@ -12,19 +12,27 @@ declare(strict_types=1);
 namespace WPProductBuilder\Services;
 
 use WPProductBuilder\API\AmazonClient;
+use WPProductBuilder\API\CJClient;
+use WPProductBuilder\API\AwinClient;
+use WPProductBuilder\API\ProductNetworkInterface;
 use WPProductBuilder\Scraper\AmazonScraper;
 use WPProductBuilder\Database\Repositories\ProductRepository;
 
 /**
- * Handles product data retrieval with fallback support
+ * Handles product data retrieval with fallback support across networks
  */
 class ProductDataService {
     /**
-     * Data source modes
+     * Data source modes (Amazon-specific)
      */
     public const MODE_API_ONLY = 'api';
     public const MODE_SCRAPER_ONLY = 'scraper';
-    public const MODE_AUTO = 'auto'; // Try API first, fallback to scraper
+    public const MODE_AUTO = 'auto';
+
+    /**
+     * Supported networks
+     */
+    public const NETWORKS = ['amazon', 'cj', 'awin'];
 
     /**
      * Amazon API client
@@ -37,12 +45,22 @@ class ProductDataService {
     private ?AmazonScraper $scraper = null;
 
     /**
+     * CJ Affiliate client
+     */
+    private ?CJClient $cjClient = null;
+
+    /**
+     * Awin client
+     */
+    private ?AwinClient $awinClient = null;
+
+    /**
      * Product repository
      */
     private ProductRepository $productRepo;
 
     /**
-     * Current mode
+     * Current mode (Amazon data source mode)
      */
     private string $mode;
 
@@ -58,10 +76,73 @@ class ProductDataService {
     /**
      * Get single product
      *
-     * @param string $asin Product ASIN
+     * @param string $productId Product identifier (ASIN for Amazon, network-specific ID for others)
+     * @param string $network Network name (amazon, cj, awin)
      * @return array|null Product data or null
      */
-    public function getProduct(string $asin): ?array {
+    public function getProduct(string $productId, string $network = 'amazon'): ?array {
+        if ($network === 'amazon') {
+            return $this->getAmazonProduct($productId);
+        }
+
+        $client = $this->getNetworkClient($network);
+        if (!$client || !$client->isConfigured()) {
+            return null;
+        }
+
+        return $client->getProduct($productId);
+    }
+
+    /**
+     * Get multiple products
+     *
+     * @param array $productIds Array of product identifiers
+     * @param string $network Network name
+     * @return array Products data keyed by product ID
+     */
+    public function getMultipleProducts(array $productIds, string $network = 'amazon'): array {
+        $productIds = array_map('trim', $productIds);
+        $productIds = array_filter($productIds);
+
+        if ($network === 'amazon') {
+            return $this->getMultipleAmazonProducts($productIds);
+        }
+
+        $client = $this->getNetworkClient($network);
+        if (!$client || !$client->isConfigured()) {
+            return [];
+        }
+
+        $result = $client->getMultipleProducts($productIds);
+        return $result['products'] ?? [];
+    }
+
+    /**
+     * Search products
+     *
+     * @param string $query Search query
+     * @param int $maxResults Maximum results
+     * @param string $network Network to search
+     * @return array Search results
+     */
+    public function searchProducts(string $query, int $maxResults = 10, string $network = 'amazon'): array {
+        if ($network === 'amazon') {
+            return $this->searchAmazonProducts($query, $maxResults);
+        }
+
+        $client = $this->getNetworkClient($network);
+        if (!$client || !$client->isConfigured()) {
+            return [];
+        }
+
+        $result = $client->searchProducts($query, ['item_count' => $maxResults]);
+        return $result['products'] ?? [];
+    }
+
+    /**
+     * Get Amazon product with mode-based fallback
+     */
+    private function getAmazonProduct(string $asin): ?array {
         $asin = strtoupper(trim($asin));
 
         switch ($this->mode) {
@@ -73,25 +154,20 @@ class ProductDataService {
 
             case self::MODE_AUTO:
             default:
-                // Try API first if configured
                 if ($this->isApiConfigured()) {
                     $product = $this->getFromApi($asin);
                     if ($product) {
                         return $product;
                     }
                 }
-                // Fallback to scraper
                 return $this->getFromScraper($asin);
         }
     }
 
     /**
-     * Get multiple products
-     *
-     * @param array $asins Array of ASINs
-     * @return array Products data keyed by ASIN
+     * Get multiple Amazon products with mode-based fallback
      */
-    public function getMultipleProducts(array $asins): array {
+    private function getMultipleAmazonProducts(array $asins): array {
         $asins = array_map(fn($a) => strtoupper(trim($a)), $asins);
         $asins = array_filter($asins);
 
@@ -107,14 +183,12 @@ class ProductDataService {
                 $products = [];
                 $remaining = $asins;
 
-                // Try API first if configured
                 if ($this->isApiConfigured()) {
                     $apiProducts = $this->getMultipleFromApi($asins);
                     $products = $apiProducts;
                     $remaining = array_diff($asins, array_keys($apiProducts));
                 }
 
-                // Scrape any missing products
                 if (!empty($remaining)) {
                     $scraped = $this->getMultipleFromScraper($remaining);
                     $products = array_merge($products, $scraped);
@@ -125,13 +199,9 @@ class ProductDataService {
     }
 
     /**
-     * Search products
-     *
-     * @param string $query Search query
-     * @param int $maxResults Maximum results
-     * @return array Search results
+     * Search Amazon products with mode-based fallback
      */
-    public function searchProducts(string $query, int $maxResults = 10): array {
+    private function searchAmazonProducts(string $query, int $maxResults): array {
         switch ($this->mode) {
             case self::MODE_API_ONLY:
                 return $this->searchFromApi($query, $maxResults);
@@ -141,20 +211,18 @@ class ProductDataService {
 
             case self::MODE_AUTO:
             default:
-                // Try API first if configured
                 if ($this->isApiConfigured()) {
                     $results = $this->searchFromApi($query, $maxResults);
                     if (!empty($results)) {
                         return $results;
                     }
                 }
-                // Fallback to scraper
                 return $this->searchFromScraper($query, $maxResults);
         }
     }
 
     /**
-     * Get product from API
+     * Get product from Amazon API
      */
     private function getFromApi(string $asin): ?array {
         $client = $this->getApiClient();
@@ -173,7 +241,7 @@ class ProductDataService {
     }
 
     /**
-     * Get multiple products from API
+     * Get multiple products from Amazon API
      */
     private function getMultipleFromApi(array $asins): array {
         $client = $this->getApiClient();
@@ -193,7 +261,7 @@ class ProductDataService {
     }
 
     /**
-     * Search from API
+     * Search from Amazon API
      */
     private function searchFromApi(string $query, int $maxResults): array {
         $client = $this->getApiClient();
@@ -213,7 +281,7 @@ class ProductDataService {
     }
 
     /**
-     * Check if API is configured
+     * Check if Amazon API is configured
      */
     private function isApiConfigured(): bool {
         $credentials = get_option('wpb_credentials_encrypted', []);
@@ -221,7 +289,22 @@ class ProductDataService {
     }
 
     /**
-     * Get API client (lazy load)
+     * Get a network client by name
+     *
+     * @param string $network Network name
+     * @return ProductNetworkInterface|null
+     */
+    private function getNetworkClient(string $network): ?ProductNetworkInterface {
+        return match ($network) {
+            'amazon' => $this->getApiClient(),
+            'cj' => $this->getCJClient(),
+            'awin' => $this->getAwinClient(),
+            default => null,
+        };
+    }
+
+    /**
+     * Get Amazon API client (lazy load)
      */
     private function getApiClient(): ?AmazonClient {
         if ($this->apiClient === null) {
@@ -241,24 +324,95 @@ class ProductDataService {
     }
 
     /**
-     * Test data sources
+     * Get CJ client (lazy load)
+     */
+    private function getCJClient(): ?CJClient {
+        if ($this->cjClient === null) {
+            $this->cjClient = new CJClient();
+        }
+        return $this->cjClient;
+    }
+
+    /**
+     * Get Awin client (lazy load)
+     */
+    private function getAwinClient(): ?AwinClient {
+        if ($this->awinClient === null) {
+            $this->awinClient = new AwinClient();
+        }
+        return $this->awinClient;
+    }
+
+    /**
+     * Get list of configured networks
+     *
+     * @return array Network info arrays
+     */
+    public function getConfiguredNetworks(): array {
+        $networks = [];
+
+        // Amazon — always available (scraper doesn't need credentials)
+        $networks[] = [
+            'name' => 'amazon',
+            'label' => 'Amazon',
+            'configured' => true,
+            'has_api' => $this->isApiConfigured(),
+        ];
+
+        $cj = $this->getCJClient();
+        if ($cj && $cj->isConfigured()) {
+            $networks[] = [
+                'name' => 'cj',
+                'label' => 'CJ Affiliate',
+                'configured' => true,
+                'has_api' => true,
+            ];
+        }
+
+        $awin = $this->getAwinClient();
+        if ($awin && $awin->isConfigured()) {
+            $networks[] = [
+                'name' => 'awin',
+                'label' => 'Awin',
+                'configured' => true,
+                'has_api' => true,
+            ];
+        }
+
+        return $networks;
+    }
+
+    /**
+     * Test data sources across all configured networks
      */
     public function testConnections(): array {
         $results = [];
 
-        // Test API
+        // Amazon API
         if ($this->isApiConfigured()) {
             $client = $this->getApiClient();
-            $results['api'] = $client->testConnection();
+            $results['amazon_api'] = $client->testConnection();
         } else {
-            $results['api'] = [
+            $results['amazon_api'] = [
                 'success' => false,
-                'message' => __('API not configured', 'wp-product-builder'),
+                'message' => __('Amazon API not configured', 'wp-product-builder'),
             ];
         }
 
-        // Test Scraper
-        $results['scraper'] = $this->getScraper()->testConnection();
+        // Amazon Scraper
+        $results['amazon_scraper'] = $this->getScraper()->testConnection();
+
+        // CJ
+        $cj = $this->getCJClient();
+        if ($cj->isConfigured()) {
+            $results['cj'] = $cj->testConnection();
+        }
+
+        // Awin
+        $awin = $this->getAwinClient();
+        if ($awin->isConfigured()) {
+            $results['awin'] = $awin->testConnection();
+        }
 
         return $results;
     }
@@ -287,6 +441,9 @@ class ProductDataService {
             'mode' => $this->mode,
             'api_configured' => $this->isApiConfigured(),
             'scraper_available' => true,
+            'cj_configured' => $this->getCJClient()->isConfigured(),
+            'awin_configured' => $this->getAwinClient()->isConfigured(),
+            'configured_networks' => $this->getConfiguredNetworks(),
             'recommended_mode' => $this->isApiConfigured() ? self::MODE_AUTO : self::MODE_SCRAPER_ONLY,
         ];
     }

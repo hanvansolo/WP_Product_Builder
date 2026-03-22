@@ -42,6 +42,14 @@
                 amazon_partner_tag: $('#amazon_partner_tag').val(),
                 amazon_marketplace: $('#amazon_marketplace').val(),
 
+                // CJ Affiliate settings
+                cj_api_key: $('#cj_api_key').val() || null,
+                cj_website_id: $('#cj_website_id').val(),
+
+                // Awin settings
+                awin_api_key: $('#awin_api_key').val() || null,
+                awin_publisher_id: $('#awin_publisher_id').val(),
+
                 // Content settings
                 default_post_status: $('#default_post_status').val(),
                 auto_insert_schema: $('#auto_insert_schema').is(':checked'),
@@ -78,6 +86,12 @@
                     }
                     if (formData.amazon_secret_key) {
                         $('#amazon_secret_key').val('').attr('placeholder', '****');
+                    }
+                    if (formData.cj_api_key) {
+                        $('#cj_api_key').val('').attr('placeholder', '****');
+                    }
+                    if (formData.awin_api_key) {
+                        $('#awin_api_key').val('').attr('placeholder', '****');
                     }
                 },
                 error: function(xhr) {

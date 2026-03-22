@@ -23,6 +23,12 @@ $amazon_access_display = !empty($credentials['amazon_access_key'])
 $amazon_secret_display = !empty($credentials['amazon_secret_key'])
     ? \WPProductBuilder\Encryption\EncryptionService::mask($encryption->decrypt($credentials['amazon_secret_key']))
     : '';
+$cj_key_display = !empty($credentials['cj_api_key'])
+    ? \WPProductBuilder\Encryption\EncryptionService::mask($encryption->decrypt($credentials['cj_api_key']))
+    : '';
+$awin_key_display = !empty($credentials['awin_api_key'])
+    ? \WPProductBuilder\Encryption\EncryptionService::mask($encryption->decrypt($credentials['awin_api_key']))
+    : '';
 
 $marketplaces = [
     'US' => 'United States (amazon.com)',
@@ -188,6 +194,116 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
                             </option>
                             <?php endforeach; ?>
                         </select>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- CJ Affiliate Settings -->
+        <div class="wpb-card">
+            <h2>
+                <span class="dashicons dashicons-networking"></span>
+                <?php esc_html_e('CJ Affiliate Settings', 'wp-product-builder'); ?>
+                <span class="wpb-optional-badge"><?php esc_html_e('Optional', 'wp-product-builder'); ?></span>
+            </h2>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="cj_api_key"><?php esc_html_e('API Key', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <input type="password"
+                               id="cj_api_key"
+                               name="cj_api_key"
+                               class="regular-text"
+                               placeholder="<?php echo $cj_key_display ? esc_attr($cj_key_display) : esc_attr__('Enter your CJ API key', 'wp-product-builder'); ?>"
+                               autocomplete="off">
+                        <button type="button" class="button wpb-toggle-password" data-target="cj_api_key">
+                            <span class="dashicons dashicons-visibility"></span>
+                        </button>
+                        <p class="description">
+                            <?php
+                            printf(
+                                esc_html__('Get your API key from the %s', 'wp-product-builder'),
+                                '<a href="https://developers.cj.com/" target="_blank">' . esc_html__('CJ Developer Portal', 'wp-product-builder') . '</a>'
+                            );
+                            ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="cj_website_id"><?php esc_html_e('Website ID', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="cj_website_id"
+                               name="cj_website_id"
+                               class="regular-text"
+                               value="<?php echo esc_attr($credentials['cj_website_id'] ?? ''); ?>"
+                               placeholder="<?php esc_attr_e('Enter your CJ Website ID', 'wp-product-builder'); ?>">
+                        <button type="button" class="button wpb-test-connection" data-api="cj">
+                            <?php esc_html_e('Test Connection', 'wp-product-builder'); ?>
+                        </button>
+                        <p class="description">
+                            <?php esc_html_e('Your CJ publisher website ID, found in your CJ account settings.', 'wp-product-builder'); ?>
+                        </p>
+                        <div class="wpb-connection-result" id="cj-connection-result"></div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Awin Settings -->
+        <div class="wpb-card">
+            <h2>
+                <span class="dashicons dashicons-networking"></span>
+                <?php esc_html_e('Awin Settings', 'wp-product-builder'); ?>
+                <span class="wpb-optional-badge"><?php esc_html_e('Optional', 'wp-product-builder'); ?></span>
+            </h2>
+            <table class="form-table">
+                <tr>
+                    <th scope="row">
+                        <label for="awin_api_key"><?php esc_html_e('API Key', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <input type="password"
+                               id="awin_api_key"
+                               name="awin_api_key"
+                               class="regular-text"
+                               placeholder="<?php echo $awin_key_display ? esc_attr($awin_key_display) : esc_attr__('Enter your Awin API key', 'wp-product-builder'); ?>"
+                               autocomplete="off">
+                        <button type="button" class="button wpb-toggle-password" data-target="awin_api_key">
+                            <span class="dashicons dashicons-visibility"></span>
+                        </button>
+                        <p class="description">
+                            <?php
+                            printf(
+                                esc_html__('Get your API key from the %s', 'wp-product-builder'),
+                                '<a href="https://wiki.awin.com/index.php/Publisher_API" target="_blank">' . esc_html__('Awin Publisher API', 'wp-product-builder') . '</a>'
+                            );
+                            ?>
+                        </p>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="awin_publisher_id"><?php esc_html_e('Publisher ID', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="awin_publisher_id"
+                               name="awin_publisher_id"
+                               class="regular-text"
+                               value="<?php echo esc_attr($credentials['awin_publisher_id'] ?? ''); ?>"
+                               placeholder="<?php esc_attr_e('Enter your Awin Publisher ID', 'wp-product-builder'); ?>">
+                        <button type="button" class="button wpb-test-connection" data-api="awin">
+                            <?php esc_html_e('Test Connection', 'wp-product-builder'); ?>
+                        </button>
+                        <p class="description">
+                            <?php esc_html_e('Your numeric Awin publisher ID, found in your Awin dashboard.', 'wp-product-builder'); ?>
+                        </p>
+                        <div class="wpb-connection-result" id="awin-connection-result"></div>
                     </td>
                 </tr>
             </table>

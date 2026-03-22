@@ -184,10 +184,23 @@ class AmazonScraper {
             $html = $this->fetchPage($url);
 
             if (!$html) {
+                error_log('WPB Scraper: No HTML returned from search');
                 return [];
             }
 
-            return $this->parseSearchResults($html, $maxResults);
+            // Check for CAPTCHA or bot detection
+            if (str_contains($html, 'captcha') || str_contains($html, 'robot')) {
+                error_log('WPB Scraper: Amazon CAPTCHA detected - server may be blocked');
+                return [];
+            }
+
+            $results = $this->parseSearchResults($html, $maxResults);
+
+            if (empty($results)) {
+                error_log('WPB Scraper: No results parsed. HTML length: ' . strlen($html));
+            }
+
+            return $results;
 
         } catch (\Exception $e) {
             error_log('WPB Scraper Search Error: ' . $e->getMessage());
@@ -295,7 +308,9 @@ class AmazonScraper {
         libxml_clear_errors();
 
         return [
+            'product_id' => $asin,
             'asin' => $asin,
+            'network' => 'amazon',
             'title' => trim($title),
             'price' => $price,
             'currency' => $this->getCurrency(),
@@ -309,8 +324,9 @@ class AmazonScraper {
             'category' => $category,
             'description' => $description,
             'marketplace' => $this->marketplace,
+            'merchant_name' => null,
             'fetched_at' => current_time('mysql'),
-            'source' => 'scraper',
+            'source' => 'amazon_scraper',
         ];
     }
 
@@ -371,13 +387,17 @@ class AmazonScraper {
             $rating = $matches[1] ?? null;
 
             $products[] = [
+                'product_id' => $asin,
                 'asin' => $asin,
+                'network' => 'amazon',
                 'title' => $title,
                 'price' => $price,
                 'image_url' => $imageUrl,
                 'rating' => $rating ? (float) $rating : null,
                 'affiliate_url' => $this->buildAffiliateUrl($asin),
                 'marketplace' => $this->marketplace,
+                'merchant_name' => null,
+                'source' => 'amazon_scraper',
             ];
 
             $count++;
