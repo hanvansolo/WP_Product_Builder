@@ -210,7 +210,17 @@ class AmazonScraper {
      */
     private function searchViaGoogle(string $query, int $maxResults = 10): array {
         $domain = self::DOMAINS[$this->marketplace] ?? 'amazon.com';
-        $googleUrl = 'https://www.google.com/search?q=' . urlencode("site:{$domain} {$query}") . '&num=' . min($maxResults * 2, 20);
+
+        // Use localised Google domain for better results
+        $googleDomains = [
+            'US' => 'www.google.com', 'UK' => 'www.google.co.uk',
+            'DE' => 'www.google.de', 'FR' => 'www.google.fr',
+            'CA' => 'www.google.ca', 'JP' => 'www.google.co.jp',
+            'IT' => 'www.google.it', 'ES' => 'www.google.es',
+            'AU' => 'www.google.com.au',
+        ];
+        $googleDomain = $googleDomains[$this->marketplace] ?? 'www.google.com';
+        $googleUrl = "https://{$googleDomain}/search?q=" . urlencode("site:{$domain} {$query}") . '&num=' . min($maxResults * 2, 20);
 
         $html = $this->fetchPage($googleUrl);
         if (!$html) {

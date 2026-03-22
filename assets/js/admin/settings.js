@@ -1,76 +1,60 @@
 /**
- * WP Product Builder - Settings Page JavaScript
+ * Nito Product Builder - Settings Page JavaScript
  */
 (function($) {
     'use strict';
 
     var WPBSettings = {
-        /**
-         * Initialize settings page
-         */
         init: function() {
             this.bindEvents();
         },
 
-        /**
-         * Bind events
-         */
         bindEvents: function() {
             $('#wpb-settings-form').on('submit', this.saveSettings);
             $('#wpb-clear-cache').on('click', this.clearCache);
             $('#wpb-check-update').on('click', this.checkForUpdate);
         },
 
-        /**
-         * Save settings via AJAX
-         */
         saveSettings: function(e) {
             e.preventDefault();
 
-            var $form = $(this);
             var $button = $('#wpb-save-settings');
-            var $spinner = $form.find('.spinner');
+            var $spinner = $(this).find('.spinner');
 
-            // Collect form data
-            var formData = {
-                // Claude settings
-                claude_api_key: $('#claude_api_key').val() || null,
-                claude_model: $('#claude_model').val(),
-
-                // Amazon settings
-                amazon_access_key: $('#amazon_access_key').val() || null,
-                amazon_secret_key: $('#amazon_secret_key').val() || null,
-                amazon_partner_tag: $('#amazon_partner_tag').val(),
-                amazon_marketplace: $('#amazon_marketplace').val(),
-
-                // CJ Affiliate settings
-                cj_api_key: $('#cj_api_key').val() || null,
-                cj_website_id: $('#cj_website_id').val(),
-
-                // Awin settings
-                awin_api_key: $('#awin_api_key').val() || null,
-                awin_publisher_id: $('#awin_publisher_id').val(),
-
-                // Content settings
-                focus_category: $('#focus_category').val(),
-                default_post_status: $('#default_post_status').val(),
-                auto_insert_schema: $('#auto_insert_schema').is(':checked'),
-                affiliate_disclosure: $('#affiliate_disclosure').val(),
-
-                // Cache settings
-                cache_duration_hours: parseInt($('#cache_duration_hours').val(), 10),
-                enable_price_updates: $('#enable_price_updates').is(':checked'),
-
-                // Advanced settings
-                remove_data_on_uninstall: $('#remove_data_on_uninstall').is(':checked')
-            };
-
-            // Prevent double submission
-            if ($button.data('saving')) return;
-            $button.data('saving', true);
-
+            // Prevent double click
+            if ($button.prop('disabled')) return;
             $button.prop('disabled', true).text('Saving...');
             $spinner.addClass('is-active');
+
+            // Safely get form values
+            var val = function(id) {
+                var el = document.getElementById(id);
+                return el ? el.value : '';
+            };
+            var checked = function(id) {
+                var el = document.getElementById(id);
+                return el ? el.checked : false;
+            };
+
+            var formData = {
+                claude_api_key: val('claude_api_key') || null,
+                claude_model: val('claude_model'),
+                amazon_access_key: val('amazon_access_key') || null,
+                amazon_secret_key: val('amazon_secret_key') || null,
+                amazon_partner_tag: val('amazon_partner_tag'),
+                amazon_marketplace: val('amazon_marketplace'),
+                cj_api_key: val('cj_api_key') || null,
+                cj_website_id: val('cj_website_id'),
+                awin_api_key: val('awin_api_key') || null,
+                awin_publisher_id: val('awin_publisher_id'),
+                focus_category: val('focus_category'),
+                default_post_status: val('default_post_status'),
+                auto_insert_schema: checked('auto_insert_schema'),
+                affiliate_disclosure: val('affiliate_disclosure'),
+                cache_duration_hours: parseInt(val('cache_duration_hours'), 10) || 24,
+                enable_price_updates: checked('enable_price_updates'),
+                remove_data_on_uninstall: checked('remove_data_on_uninstall')
+            };
 
             $.ajax({
                 url: wpbAdmin.apiUrl + '/settings',
@@ -81,45 +65,39 @@
                     xhr.setRequestHeader('Content-Type', 'application/json');
                 },
                 data: JSON.stringify(formData),
-                success: function(response) {
+                success: function() {
                     WPBAdmin.showNotice('Settings saved!', 'success');
 
-                    // Clear password fields (they're saved)
-                    if (formData.claude_api_key) {
-                        $('#claude_api_key').val('').attr('placeholder', '****');
-                    }
-                    if (formData.amazon_access_key) {
-                        $('#amazon_access_key').val('').attr('placeholder', '****');
-                    }
-                    if (formData.amazon_secret_key) {
-                        $('#amazon_secret_key').val('').attr('placeholder', '****');
-                    }
-                    if (formData.cj_api_key) {
-                        $('#cj_api_key').val('').attr('placeholder', '****');
-                    }
-                    if (formData.awin_api_key) {
-                        $('#awin_api_key').val('').attr('placeholder', '****');
-                    }
+                    // Clear password fields after save
+                    var pwFields = ['claude_api_key', 'amazon_access_key', 'amazon_secret_key', 'cj_api_key', 'awin_api_key'];
+                    pwFields.forEach(function(id) {
+                        var el = document.getElementById(id);
+                        if (el && el.value) {
+                            el.value = '';
+                            el.placeholder = '••••••••';
+                        }
+                    });
                 },
                 error: function(xhr) {
-                    var message = xhr.responseJSON && xhr.responseJSON.message
-                        ? xhr.responseJSON.message
-                        : wpbAdmin.i18n.error;
+                    var message = 'Save failed.';
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        message = xhr.responseJSON.message;
+                    } else if (xhr.statusText === 'timeout') {
+                        message = 'Request timed out. Try again.';
+                    } else if (xhr.status === 0) {
+                        message = 'Connection error. Check your internet.';
+                    } else if (xhr.status === 403) {
+                        message = 'Permission denied. You may need to refresh the page.';
+                    }
                     WPBAdmin.showNotice(message, 'error');
                 },
                 complete: function() {
-                    $button.prop('disabled', false).text('Save Settings').data('saving', false);
+                    $button.prop('disabled', false).text('Save Settings');
                     $spinner.removeClass('is-active');
                 }
             });
         },
 
-        /**
-         * Clear product cache
-         */
-        /**
-         * Check for plugin updates
-         */
         checkForUpdate: function() {
             var $button = $('#wpb-check-update');
             var $status = $('#wpb-update-status');
@@ -137,6 +115,7 @@
             $.ajax({
                 url: wpbAdmin.apiUrl + '/update/check',
                 method: 'POST',
+                timeout: 15000,
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                 },
@@ -161,11 +140,8 @@
                         $status.html('<span style="color: #d63638;">' + (response.message || 'Check failed.') + '</span>');
                     }
                 },
-                error: function(xhr) {
-                    var message = xhr.responseJSON && xhr.responseJSON.message
-                        ? xhr.responseJSON.message
-                        : 'Could not check for updates.';
-                    $status.html('<span style="color: #d63638;">' + message + '</span>');
+                error: function() {
+                    $status.html('<span style="color: #d63638;">Could not check for updates.</span>');
                 },
                 complete: function() {
                     $button.prop('disabled', false);
@@ -173,9 +149,6 @@
             });
         },
 
-        /**
-         * Clear product cache
-         */
         clearCache: function() {
             var $button = $(this);
             var $status = $('#wpb-cache-status');
@@ -186,14 +159,13 @@
             $.ajax({
                 url: wpbAdmin.apiUrl + '/cache/clear',
                 method: 'POST',
+                timeout: 15000,
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                 },
-                success: function(response) {
+                success: function() {
                     $status.html('<span style="color: green;">Cache cleared!</span>');
-                    setTimeout(function() {
-                        $status.html('');
-                    }, 3000);
+                    setTimeout(function() { $status.html(''); }, 3000);
                 },
                 error: function() {
                     $status.html('<span style="color: red;">Error clearing cache</span>');
