@@ -97,9 +97,11 @@ class GitHubUpdater {
         $release = $this->getLatestRelease();
 
         if (!$release) {
+            // Return debug info so we can diagnose the issue
+            $debugInfo = $this->debugGitHubConnection();
             return new \WP_REST_Response([
                 'success' => false,
-                'message' => __('Could not check for updates. GitHub may be unreachable.', 'wp-product-builder'),
+                'message' => $debugInfo,
             ], 200);
         }
 
@@ -264,6 +266,54 @@ class GitHubUpdater {
         }
 
         return null;
+    }
+
+    /**
+     * Debug GitHub connection issues
+     */
+    private function debugGitHubConnection(): string {
+        $url = self::API_URL . '/' . self::REPO_OWNER . '/' . self::REPO_NAME . '/tags?per_page=1';
+
+        $response = wp_remote_get($url, [
+            'timeout' => 15,
+            'headers' => [
+                'Accept' => 'application/vnd.github.v3+json',
+                'User-Agent' => 'Nito-Product-Builder/' . $this->currentVersion,
+            ],
+        ]);
+
+        if (is_wp_error($response)) {
+            return sprintf(
+                __('Connection error: %s', 'wp-product-builder'),
+                $response->get_error_message()
+            );
+        }
+
+        $code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+
+        if ($code === 403) {
+            return __('GitHub API rate limit exceeded. Try again in a few minutes.', 'wp-product-builder');
+        }
+
+        if ($code !== 200) {
+            return sprintf(
+                __('GitHub returned HTTP %d: %s', 'wp-product-builder'),
+                $code,
+                wp_strip_all_tags(substr($body, 0, 200))
+            );
+        }
+
+        $tags = json_decode($body, true);
+        if (empty($tags) || !is_array($tags)) {
+            return __('GitHub returned empty response. No tags found.', 'wp-product-builder');
+        }
+
+        return sprintf(
+            __('Tags found (latest: %s) but could not process. Raw: %s', 'wp-product-builder'),
+            $tags[0]['name'] ?? 'unknown',
+            substr($body, 0, 200)
+        );
     }
 
     /**
