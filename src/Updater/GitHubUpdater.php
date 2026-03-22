@@ -196,11 +196,32 @@ class GitHubUpdater {
      * GitHub zips extract to owner-repo-hash/, we need wp-product-builder/
      */
     public function postInstall(bool $response, array $hook_extra, array $result): array {
+        // Only act on our plugin, and only when the extracted folder name is wrong
+        // (GitHub zips extract to "owner-repo-hash/" instead of "wp-product-builder/")
+        if (!isset($result['destination'])) {
+            return $result;
+        }
+
+        $destination = rtrim($result['destination'], '/\\');
+        $folderName = basename($destination);
+
+        // If the folder is already correct, do nothing
+        if ($folderName === $this->pluginSlug) {
+            return $result;
+        }
+
+        // Only rename if it looks like a GitHub zip (contains our repo name)
+        if (!str_contains($folderName, self::REPO_NAME) && !str_contains($folderName, self::REPO_OWNER)) {
+            return $result;
+        }
+
         global $wp_filesystem;
 
         $pluginFolder = WP_PLUGIN_DIR . '/' . $this->pluginSlug;
-        $wp_filesystem->move($result['destination'], $pluginFolder);
-        $result['destination'] = $pluginFolder;
+
+        if ($wp_filesystem->move($destination, $pluginFolder)) {
+            $result['destination'] = $pluginFolder;
+        }
 
         if (is_plugin_active($this->pluginBasename)) {
             activate_plugin($this->pluginBasename);
