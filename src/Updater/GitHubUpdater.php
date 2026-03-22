@@ -195,7 +195,7 @@ class GitHubUpdater {
      *
      * GitHub zips extract to owner-repo-hash/, we need wp-product-builder/
      */
-    public function postInstall(bool $response, array $hook_extra, array $result): array {
+    public function postInstall(mixed $response, array $hook_extra, array $result): array {
         // Only act on our plugin, and only when the extracted folder name is wrong
         // (GitHub zips extract to "owner-repo-hash/" instead of "wp-product-builder/")
         if (!isset($result['destination'])) {
