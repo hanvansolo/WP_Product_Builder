@@ -415,6 +415,49 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
             </table>
         </div>
 
+        <!-- Plugin Updates -->
+        <div class="wpb-card">
+            <h2>
+                <span class="dashicons dashicons-update"></span>
+                <?php esc_html_e('Plugin Updates', 'wp-product-builder'); ?>
+            </h2>
+            <table class="form-table">
+                <tr>
+                    <th scope="row"><?php esc_html_e('Current Version', 'wp-product-builder'); ?></th>
+                    <td>
+                        <strong>v<?php echo esc_html(WPB_VERSION); ?></strong>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"><?php esc_html_e('Latest Version', 'wp-product-builder'); ?></th>
+                    <td>
+                        <span id="wpb-latest-version">—</span>
+                        <span id="wpb-update-badge" style="display:none;" class="update-plugins count-1">
+                            <span class="plugin-count" id="wpb-update-badge-text"></span>
+                        </span>
+                    </td>
+                </tr>
+                <tr>
+                    <th scope="row"></th>
+                    <td>
+                        <button type="button" class="button" id="wpb-check-update">
+                            <span class="dashicons dashicons-update" style="margin-top:4px;"></span>
+                            <?php esc_html_e('Check for Updates', 'wp-product-builder'); ?>
+                        </button>
+                        <a href="<?php echo esc_url(admin_url('update-core.php')); ?>" class="button button-primary" id="wpb-do-update" style="display:none;">
+                            <span class="dashicons dashicons-download" style="margin-top:4px;"></span>
+                            <?php esc_html_e('Update Now', 'wp-product-builder'); ?>
+                        </a>
+                        <span id="wpb-update-status"></span>
+                        <div id="wpb-release-notes" style="display:none; margin-top:10px;">
+                            <p class="description"><strong><?php esc_html_e('Release Notes:', 'wp-product-builder'); ?></strong></p>
+                            <div id="wpb-release-notes-content" style="background:#f9f9f9;padding:10px;border-left:4px solid #0073aa;margin-top:5px;"></div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+        </div>
+
         <!-- Advanced Settings -->
         <div class="wpb-card">
             <h2>

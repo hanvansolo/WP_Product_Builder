@@ -21,6 +21,7 @@ use WPProductBuilder\Blocks\BlockRegistrar;
 use WPProductBuilder\WooCommerce\AutoImporter;
 use WPProductBuilder\Content\BulkGenerator;
 use WPProductBuilder\Services\StatisticsTracker;
+use WPProductBuilder\Updater\GitHubUpdater;
 
 /**
  * Main plugin class - Singleton pattern
@@ -92,6 +93,10 @@ final class Plugin {
 
         // Register cron hooks
         $this->registerCronHooks();
+
+        // Register GitHub updater
+        $updater = new GitHubUpdater();
+        $updater->register();
 
         // Register affiliate link redirect handler
         add_action('template_redirect', [$this, 'handleAffiliateRedirect']);

@@ -18,6 +18,7 @@
         bindEvents: function() {
             $('#wpb-settings-form').on('submit', this.saveSettings);
             $('#wpb-clear-cache').on('click', this.clearCache);
+            $('#wpb-check-update').on('click', this.checkForUpdate);
         },
 
         /**
@@ -103,6 +104,65 @@
                 complete: function() {
                     $button.prop('disabled', false).text('Save Settings');
                     $spinner.removeClass('is-active');
+                }
+            });
+        },
+
+        /**
+         * Clear product cache
+         */
+        /**
+         * Check for plugin updates
+         */
+        checkForUpdate: function() {
+            var $button = $('#wpb-check-update');
+            var $status = $('#wpb-update-status');
+            var $latestVersion = $('#wpb-latest-version');
+            var $updateBtn = $('#wpb-do-update');
+            var $badge = $('#wpb-update-badge');
+            var $notes = $('#wpb-release-notes');
+
+            $button.prop('disabled', true);
+            $status.html('<span class="wpb-loading"></span> Checking...');
+            $updateBtn.hide();
+            $badge.hide();
+            $notes.hide();
+
+            $.ajax({
+                url: wpbAdmin.apiUrl + '/update/check',
+                method: 'POST',
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
+                },
+                success: function(response) {
+                    if (response.success) {
+                        $latestVersion.text('v' + response.latest_version);
+
+                        if (response.has_update) {
+                            $status.html('<span style="color: #d63638;">Update available!</span>');
+                            $updateBtn.show();
+                            $badge.show();
+                            $('#wpb-update-badge-text').text('v' + response.latest_version);
+
+                            if (response.release_notes) {
+                                $('#wpb-release-notes-content').html(response.release_notes.replace(/\n/g, '<br>'));
+                                $notes.show();
+                            }
+                        } else {
+                            $status.html('<span style="color: #00a32a;">You are running the latest version.</span>');
+                        }
+                    } else {
+                        $status.html('<span style="color: #d63638;">' + (response.message || 'Check failed.') + '</span>');
+                    }
+                },
+                error: function(xhr) {
+                    var message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'Could not check for updates.';
+                    $status.html('<span style="color: #d63638;">' + message + '</span>');
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
                 }
             });
         },
