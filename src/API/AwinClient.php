@@ -59,19 +59,17 @@ class AwinClient implements ProductNetworkInterface {
      */
     public function __construct(?string $apiKey = null, ?string $publisherId = null) {
         $settings = get_option('wpb_settings', []);
+        $encryption = new EncryptionService();
+        $credentials = get_option('wpb_credentials_encrypted', []);
 
-        if ($apiKey !== null) {
-            $this->apiKey = $apiKey;
-            $this->publisherId = $publisherId ?? '';
-        } else {
-            $encryption = new EncryptionService();
-            $credentials = get_option('wpb_credentials_encrypted', []);
-
-            $this->apiKey = !empty($credentials['awin_api_key'])
+        // Use provided values or fall back to saved credentials (independently)
+        $this->apiKey = $apiKey ?? (
+            !empty($credentials['awin_api_key'])
                 ? $encryption->decrypt($credentials['awin_api_key'])
-                : '';
+                : ''
+        );
 
-            $this->publisherId = $credentials['awin_publisher_id'] ?? '';
+        $this->publisherId = $publisherId ?? ($credentials['awin_publisher_id'] ?? '');
         }
 
         $this->cacheDuration = ($settings['cache_duration_hours'] ?? 24) * HOUR_IN_SECONDS;
