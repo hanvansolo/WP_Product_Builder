@@ -169,14 +169,41 @@
         /**
          * Add ASIN directly
          */
+        /**
+         * Extract ASIN from Amazon URL or raw ASIN
+         */
+        extractAsin: function(input) {
+            input = input.trim();
+
+            // Already a plain ASIN
+            if (/^[A-Z0-9]{10}$/i.test(input)) {
+                return input.toUpperCase();
+            }
+
+            // Amazon URL - extract ASIN from /dp/XXXX or /gp/product/XXXX
+            var match = input.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+            if (match) {
+                return match[1].toUpperCase();
+            }
+
+            // Amazon URL with /product/ pattern
+            match = input.match(/amazon\.[^\/]+\/.*?\/([A-Z0-9]{10})/i);
+            if (match) {
+                return match[1].toUpperCase();
+            }
+
+            return null;
+        },
+
         addAsinDirect: function() {
-            var productId = $('#wpb-asin-direct').val().trim();
+            var rawInput = $('#wpb-asin-direct').val().trim();
             var network = this.selectedNetwork;
+            var productId = rawInput;
 
             if (network === 'amazon') {
-                productId = productId.toUpperCase();
-                if (!productId || productId.length !== 10) {
-                    WPBAdmin.showNotice('Please enter a valid 10-character ASIN.', 'error', '#wpb-generator-notices');
+                productId = WPBGenerator.extractAsin(rawInput);
+                if (!productId) {
+                    WPBAdmin.showNotice('Please enter a valid Amazon ASIN or product URL.', 'error', '#wpb-generator-notices');
                     return;
                 }
             } else {
@@ -289,8 +316,9 @@
         changeNetwork: function(e) {
             this.selectedNetwork = $(e.currentTarget).val();
 
-            // Update placeholder text for direct ID input
-            var placeholder = this.selectedNetwork === 'amazon' ? 'Enter ASIN (e.g., B08N5WRWNW)' : 'Enter product ID';
+            var placeholder = this.selectedNetwork === 'amazon'
+                ? 'Paste Amazon URL or ASIN (e.g., B08N5WRWNW)'
+                : 'Enter product ID';
             $('#wpb-asin-direct').attr('placeholder', placeholder);
 
             // Clear search results when switching networks

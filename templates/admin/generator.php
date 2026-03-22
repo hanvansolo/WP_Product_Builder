@@ -121,11 +121,11 @@ $has_api_keys = !empty($credentials['claude_api_key']);
                 </div>
 
                 <div class="wpb-asin-input">
-                    <label for="wpb-asin-direct"><?php esc_html_e('Or enter product ID directly:', 'wp-product-builder'); ?></label>
+                    <label for="wpb-asin-direct"><?php esc_html_e('Or paste Amazon URL / ASIN:', 'wp-product-builder'); ?></label>
                     <input type="text"
                            id="wpb-asin-direct"
-                           placeholder="<?php esc_attr_e('Enter ASIN (e.g., B08N5WRWNW)', 'wp-product-builder'); ?>"
-                           class="regular-text">
+                           placeholder="<?php esc_attr_e('https://www.amazon.co.uk/dp/B08N5WRWNW or just B08N5WRWNW', 'wp-product-builder'); ?>"
+                           class="large-text">
                     <button type="button" class="button" id="wpb-add-asin-btn">
                         <?php esc_html_e('Add Product', 'wp-product-builder'); ?>
                     </button>

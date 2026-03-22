@@ -178,88 +178,26 @@ class AmazonScraper {
     public function searchProducts(string $query, int $maxResults = 10): array {
         $this->enforceRateLimit();
 
-        // Try Amazon direct search first
         $url = $this->buildSearchUrl($query);
 
         try {
             $html = $this->fetchPage($url);
 
-            if ($html && !str_contains($html, 'captcha') && !str_contains($html, 'robot')) {
-                $results = $this->parseSearchResults($html, $maxResults);
-                if (!empty($results)) {
-                    return $results;
-                }
+            if (!$html) {
+                return [];
             }
 
-            // Fallback: search via Google to find Amazon product ASINs
-            error_log('WPB Scraper: Amazon direct search blocked, trying Google fallback');
-            return $this->searchViaGoogle($query, $maxResults);
+            if (str_contains($html, 'captcha') || str_contains($html, 'robot')) {
+                error_log('WPB Scraper: Amazon search blocked by CAPTCHA');
+                return [];
+            }
+
+            return $this->parseSearchResults($html, $maxResults);
 
         } catch (\Exception $e) {
             error_log('WPB Scraper Search Error: ' . $e->getMessage());
             return [];
         }
-    }
-
-    /**
-     * Search for Amazon products via Google as fallback
-     *
-     * @param string $query Search query
-     * @param int $maxResults Maximum results
-     * @return array Products found
-     */
-    private function searchViaGoogle(string $query, int $maxResults = 10): array {
-        $domain = self::DOMAINS[$this->marketplace] ?? 'amazon.com';
-
-        // Use localised Google domain for better results
-        $googleDomains = [
-            'US' => 'www.google.com', 'UK' => 'www.google.co.uk',
-            'DE' => 'www.google.de', 'FR' => 'www.google.fr',
-            'CA' => 'www.google.ca', 'JP' => 'www.google.co.jp',
-            'IT' => 'www.google.it', 'ES' => 'www.google.es',
-            'AU' => 'www.google.com.au',
-        ];
-        $googleDomain = $googleDomains[$this->marketplace] ?? 'www.google.com';
-        $googleUrl = "https://{$googleDomain}/search?q=" . urlencode("site:{$domain} {$query}") . '&num=' . min($maxResults * 2, 20);
-
-        $html = $this->fetchPage($googleUrl);
-        if (!$html) {
-            return [];
-        }
-
-        // Extract Amazon ASINs from Google results
-        $asins = [];
-        preg_match_all('/\/dp\/([A-Z0-9]{10})/', $html, $matches);
-        if (!empty($matches[1])) {
-            $asins = array_unique($matches[1]);
-        }
-
-        // Also try /gp/product/ URLs
-        preg_match_all('/\/gp\/product\/([A-Z0-9]{10})/', $html, $matches2);
-        if (!empty($matches2[1])) {
-            $asins = array_unique(array_merge($asins, $matches2[1]));
-        }
-
-        if (empty($asins)) {
-            return [];
-        }
-
-        // Scrape each product by ASIN (much more reliable than search page)
-        $asins = array_slice($asins, 0, $maxResults);
-        $products = [];
-
-        foreach ($asins as $asin) {
-            $product = $this->scrapeProduct($asin);
-            if ($product) {
-                $products[] = $product;
-            }
-
-            if (count($products) >= $maxResults) {
-                break;
-            }
-        }
-
-        return $products;
     }
 
     /**
