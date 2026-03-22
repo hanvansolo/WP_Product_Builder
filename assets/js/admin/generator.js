@@ -120,9 +120,9 @@
                 data: { q: query, network: WPBGenerator.selectedNetwork },
                 success: function(response) {
                     if (response.success && response.products) {
-                        WPBGenerator.displaySearchResults(response.products, response.message);
+                        WPBGenerator.displaySearchResults(response.products, response.message, response.search_url);
                     } else {
-                        WPBGenerator.displaySearchResults([], response.message);
+                        WPBGenerator.displaySearchResults([], response.message, response.search_url);
                     }
                 },
                 error: function(xhr) {
@@ -140,7 +140,7 @@
         /**
          * Display search results
          */
-        displaySearchResults: function(products, message) {
+        displaySearchResults: function(products, message, searchUrl) {
             var $results = $('#wpb-search-results');
             var $list = $results.find('.wpb-results-list');
 
@@ -148,7 +148,14 @@
 
             if (products.length === 0) {
                 var msg = message || 'No products found. Try a different search term.';
-                $list.html('<p class="wpb-no-results">' + msg + '</p>');
+                var html = '<p class="wpb-no-results">' + msg + '</p>';
+                if (searchUrl) {
+                    html += '<p><a href="' + searchUrl + '" target="_blank" class="button button-primary">' +
+                        '<span class="dashicons dashicons-external" style="margin-top:4px;"></span> ' +
+                        'Search on Amazon</a> ' +
+                        '<small>Find products, then paste the URLs below</small></p>';
+                }
+                $list.html(html);
             } else {
                 products.forEach(function(product) {
                     var idLabel = product.network === 'amazon' ? 'ASIN' : 'ID';

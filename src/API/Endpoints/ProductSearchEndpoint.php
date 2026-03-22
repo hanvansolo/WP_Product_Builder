@@ -162,15 +162,19 @@ class ProductSearchEndpoint extends WP_REST_Controller {
             $networkLabel = $networkLabels[$network] ?? $network;
 
             $message = null;
+            $searchUrl = null;
             if (empty($products)) {
                 if ($network === 'amazon') {
-                    $service2 = new ProductDataService();
-                    $status = $service2->getStatus();
-                    if (!$status['api_configured']) {
-                        $message = __('No products found. Amazon may be blocking requests from your server. Try entering an ASIN directly, or configure your Amazon PA-API keys in Settings for reliable results.', 'wp-product-builder');
-                    } else {
-                        $message = __('No products found on Amazon. Try a different search term.', 'wp-product-builder');
-                    }
+                    $settings = get_option('wpb_settings', []);
+                    $marketplace = $settings['amazon_marketplace'] ?? 'US';
+                    $domains = [
+                        'US' => 'amazon.com', 'UK' => 'amazon.co.uk', 'DE' => 'amazon.de',
+                        'FR' => 'amazon.fr', 'CA' => 'amazon.ca', 'JP' => 'amazon.co.jp',
+                        'IT' => 'amazon.it', 'ES' => 'amazon.es', 'AU' => 'amazon.com.au',
+                    ];
+                    $domain = $domains[$marketplace] ?? 'amazon.com';
+                    $searchUrl = 'https://www.' . $domain . '/s?k=' . urlencode($query);
+                    $message = __('Amazon blocks search from servers. Click "Search on Amazon" below to find products, then paste the URLs back here.', 'wp-product-builder');
                 } else {
                     $message = sprintf(
                         __('No products found on %s. Try a different search term.', 'wp-product-builder'),
@@ -185,6 +189,7 @@ class ProductSearchEndpoint extends WP_REST_Controller {
                 'total' => count($products),
                 'network' => $network,
                 'message' => $message,
+                'search_url' => $searchUrl,
             ], 200);
 
         } catch (\Exception $e) {
