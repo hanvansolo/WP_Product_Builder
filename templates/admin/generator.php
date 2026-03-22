@@ -121,7 +121,7 @@ $has_api_keys = !empty($credentials['claude_api_key']);
                 </div>
 
                 <div class="wpb-asin-input">
-                    <label for="wpb-asin-direct"><?php esc_html_e('Or paste Amazon URL / ASIN:', 'wp-product-builder'); ?></label>
+                    <label for="wpb-asin-direct"><?php esc_html_e('Paste Amazon URL or ASIN:', 'wp-product-builder'); ?></label>
                     <input type="text"
                            id="wpb-asin-direct"
                            placeholder="<?php esc_attr_e('https://www.amazon.co.uk/dp/B08N5WRWNW or just B08N5WRWNW', 'wp-product-builder'); ?>"
@@ -129,6 +129,19 @@ $has_api_keys = !empty($credentials['claude_api_key']);
                     <button type="button" class="button" id="wpb-add-asin-btn">
                         <?php esc_html_e('Add Product', 'wp-product-builder'); ?>
                     </button>
+                </div>
+
+                <div class="wpb-bulk-input">
+                    <label for="wpb-bulk-asins"><?php esc_html_e('Bulk add (one URL or ASIN per line):', 'wp-product-builder'); ?></label>
+                    <textarea id="wpb-bulk-asins"
+                              rows="4"
+                              class="large-text"
+                              placeholder="<?php esc_attr_e("https://www.amazon.co.uk/dp/B08N5WRWNW\nhttps://www.amazon.co.uk/dp/B09XYZ1234\nB07ABC5678", 'wp-product-builder'); ?>"></textarea>
+                    <button type="button" class="button" id="wpb-bulk-add-btn">
+                        <span class="dashicons dashicons-plus-alt2" style="margin-top:4px;"></span>
+                        <?php esc_html_e('Add All Products', 'wp-product-builder'); ?>
+                    </button>
+                    <span id="wpb-bulk-status"></span>
                 </div>
             </div>
 
@@ -305,6 +318,12 @@ $has_api_keys = !empty($credentials['claude_api_key']);
                         <span class="dashicons dashicons-update"></span>
                         <?php esc_html_e('Regenerate', 'wp-product-builder'); ?>
                     </button>
+                    <?php if (class_exists('WooCommerce')): ?>
+                    <button type="button" class="button" id="wpb-woo-import-btn">
+                        <span class="dashicons dashicons-cart"></span>
+                        <?php esc_html_e('Push to WooCommerce', 'wp-product-builder'); ?>
+                    </button>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

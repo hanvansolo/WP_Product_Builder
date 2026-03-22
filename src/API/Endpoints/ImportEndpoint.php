@@ -81,6 +81,26 @@ class ImportEndpoint extends WP_REST_Controller {
             ],
         ]);
 
+        // Import products to WooCommerce (multi-network)
+        register_rest_route($this->namespace, '/' . $this->rest_base . '/woocommerce', [
+            [
+                'methods' => WP_REST_Server::CREATABLE,
+                'callback' => [$this, 'import_to_woocommerce'],
+                'permission_callback' => [$this, 'check_permission'],
+                'args' => [
+                    'product_ids' => [
+                        'required' => true,
+                        'type' => 'array',
+                    ],
+                    'network' => [
+                        'type' => 'string',
+                        'default' => 'amazon',
+                        'enum' => ['amazon', 'cj', 'awin'],
+                    ],
+                ],
+            ],
+        ]);
+
         // Get/Create/Delete import jobs
         register_rest_route($this->namespace, '/' . $this->rest_base . '/jobs', [
             [
@@ -172,6 +192,49 @@ class ImportEndpoint extends WP_REST_Controller {
      */
     public function check_permission(): bool {
         return current_user_can('manage_options');
+    }
+
+    /**
+     * Import products to WooCommerce (multi-network)
+     */
+    public function import_to_woocommerce(WP_REST_Request $request): WP_REST_Response|WP_Error {
+        if (!class_exists('WooCommerce')) {
+            return new WP_Error(
+                'woo_not_active',
+                __('WooCommerce is not installed or active.', 'wp-product-builder'),
+                ['status' => 400]
+            );
+        }
+
+        $productIds = $request->get_param('product_ids');
+        $network = $request->get_param('network') ?? 'amazon';
+
+        $importer = new ProductImporter();
+        $imported = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($productIds as $id) {
+            $result = $importer->importProduct(sanitize_text_field($id), [], $network);
+
+            if (is_wp_error($result)) {
+                $failed++;
+                $errors[] = $id . ': ' . $result->get_error_message();
+            } else {
+                $imported++;
+            }
+        }
+
+        return new WP_REST_Response([
+            'success' => true,
+            'imported' => $imported,
+            'failed' => $failed,
+            'errors' => $errors,
+            'message' => sprintf(
+                __('%d product(s) imported to WooCommerce.', 'wp-product-builder'),
+                $imported
+            ),
+        ], 200);
     }
 
     /**

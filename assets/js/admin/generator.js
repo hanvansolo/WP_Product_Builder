@@ -38,8 +38,11 @@
                 }
             });
 
-            // Add ASIN directly
+            // Add ASIN/URL directly
             $('#wpb-add-asin-btn').on('click', this.addAsinDirect.bind(this));
+
+            // Bulk add
+            $('#wpb-bulk-add-btn').on('click', this.bulkAddProducts.bind(this));
             $('#wpb-asin-direct').on('keypress', function(e) {
                 if (e.which === 13) {
                     WPBGenerator.addAsinDirect();
@@ -63,6 +66,7 @@
             $('#wpb-create-post-btn').on('click', this.createPost.bind(this));
             $('#wpb-copy-content-btn').on('click', this.copyContent.bind(this));
             $('#wpb-regenerate-btn').on('click', this.regenerate.bind(this));
+            $('#wpb-woo-import-btn').on('click', this.importToWooCommerce.bind(this));
         },
 
         /**
@@ -611,6 +615,135 @@
             this.goToStep(4);
             $('#wpb-generate-btn').show();
             $('#wpb-generation-progress').hide();
+        },
+
+        /**
+         * Bulk add products from textarea
+         */
+        bulkAddProducts: function() {
+            var text = $('#wpb-bulk-asins').val().trim();
+            if (!text) {
+                WPBAdmin.showNotice('Please paste URLs or ASINs, one per line.', 'error', '#wpb-generator-notices');
+                return;
+            }
+
+            var lines = text.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+            var $button = $('#wpb-bulk-add-btn');
+            var $status = $('#wpb-bulk-status');
+            var network = this.selectedNetwork;
+            var ids = [];
+
+            // Extract ASINs/IDs from each line
+            lines.forEach(function(line) {
+                if (network === 'amazon') {
+                    var asin = WPBGenerator.extractAsin(line);
+                    if (asin) ids.push(asin);
+                } else {
+                    ids.push(line);
+                }
+            });
+
+            if (ids.length === 0) {
+                WPBAdmin.showNotice('No valid product identifiers found.', 'error', '#wpb-generator-notices');
+                return;
+            }
+
+            // Remove duplicates
+            ids = ids.filter(function(id, index) { return ids.indexOf(id) === index; });
+
+            $button.prop('disabled', true);
+            $status.html('Fetching ' + ids.length + ' products...');
+
+            // Batch fetch all products
+            $.ajax({
+                url: wpbAdmin.apiUrl + '/products/batch',
+                method: 'POST',
+                timeout: 60000,
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                },
+                data: JSON.stringify({ product_ids: ids, network: network }),
+                success: function(response) {
+                    if (response.success && response.products) {
+                        var added = 0;
+                        var products = response.products;
+
+                        // Products may be keyed by ID
+                        if (!Array.isArray(products)) {
+                            products = Object.values(products);
+                        }
+
+                        products.forEach(function(product) {
+                            WPBGenerator.addProduct(product);
+                            added++;
+                        });
+
+                        $status.html('<span style="color:green;">' + added + ' of ' + ids.length + ' products added!</span>');
+                        $('#wpb-bulk-asins').val('');
+
+                        setTimeout(function() { $status.html(''); }, 5000);
+                    } else {
+                        $status.html('<span style="color:red;">Failed to fetch products.</span>');
+                    }
+                },
+                error: function() {
+                    $status.html('<span style="color:red;">Error fetching products.</span>');
+                },
+                complete: function() {
+                    $button.prop('disabled', false);
+                }
+            });
+        },
+
+        /**
+         * Import selected products to WooCommerce
+         */
+        importToWooCommerce: function() {
+            if (this.selectedProducts.length === 0) {
+                WPBAdmin.showNotice('No products to import.', 'error', '#wpb-generator-notices');
+                return;
+            }
+
+            var $button = $('#wpb-woo-import-btn');
+            $button.prop('disabled', true).text('Importing...');
+
+            var ids = this.selectedProducts.map(function(p) { return p.product_id || p.asin; });
+            var network = this.selectedNetwork;
+
+            $.ajax({
+                url: wpbAdmin.apiUrl + '/import/woocommerce',
+                method: 'POST',
+                timeout: 120000,
+                beforeSend: function(xhr) {
+                    xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
+                    xhr.setRequestHeader('Content-Type', 'application/json');
+                },
+                data: JSON.stringify({
+                    product_ids: ids,
+                    network: network
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        var msg = response.imported + ' product(s) imported to WooCommerce!';
+                        if (response.failed > 0) {
+                            msg += ' (' + response.failed + ' failed)';
+                        }
+                        WPBAdmin.showNotice(msg, 'success', '#wpb-generator-notices');
+                    } else {
+                        WPBAdmin.showNotice(response.message || 'Import failed.', 'error', '#wpb-generator-notices');
+                    }
+                },
+                error: function(xhr) {
+                    var message = xhr.responseJSON && xhr.responseJSON.message
+                        ? xhr.responseJSON.message
+                        : 'WooCommerce import failed.';
+                    WPBAdmin.showNotice(message, 'error', '#wpb-generator-notices');
+                },
+                complete: function() {
+                    $button.prop('disabled', false).html('<span class="dashicons dashicons-cart"></span> Push to WooCommerce');
+                }
+            });
         },
 
         /**
