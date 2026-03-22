@@ -70,7 +70,6 @@ class AwinClient implements ProductNetworkInterface {
         );
 
         $this->publisherId = $publisherId ?? ($credentials['awin_publisher_id'] ?? '');
-        }
 
         $this->cacheDuration = ($settings['cache_duration_hours'] ?? 24) * HOUR_IN_SECONDS;
         $this->productRepo = new ProductRepository();

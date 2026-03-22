@@ -95,6 +95,8 @@ class ProductsComparison implements ContentTypeInterface {
 
         $prompt .= "- IMPORTANT: In the Individual Product Overviews section, start each product with [PRODUCT_BOX_X] placeholder (X = product index from 0) - this displays the product image, price, and buy button\n";
         $prompt .= "- Be objective and balanced in the comparison\n";
+        $prompt .= "- Reference what reviewers and publications have said about these products, citing sources naturally\n";
+        $prompt .= "- IMPORTANT: Use only standard square brackets [ ] for placeholders. Never use special characters like 【】 or ［］\n";
         $prompt .= "\nWrite the comparison article now:";
 
         return $prompt;

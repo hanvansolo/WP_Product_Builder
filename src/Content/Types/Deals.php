@@ -80,6 +80,8 @@ class Deals implements ContentTypeInterface {
         $prompt .= "- Use phrases like \"Don't miss out\", \"Limited time\", \"Best price\"\n";
         $prompt .= "- Keep descriptions brief and action-oriented\n";
         $prompt .= "- End with a call to action to shop now\n";
+        $prompt .= "- Reference what reviewers and publications have said about these products, citing sources naturally\n";
+        $prompt .= "- IMPORTANT: Use only standard square brackets [ ] for placeholders. Never use special characters like 【】 or ［］\n";
         $prompt .= "\nWrite the deals article now:";
 
         return $prompt;

@@ -82,6 +82,8 @@ class Listicle implements ContentTypeInterface {
             $prompt .= "- Include a short FAQ section at the end\n";
         }
 
+        $prompt .= "- Reference what reviewers and publications have said about these products, citing sources naturally\n";
+        $prompt .= "- IMPORTANT: Use only standard square brackets [ ] for placeholders. Never use special characters like 【】 or ［］\n";
         $prompt .= "\nWrite the listicle now:";
 
         return $prompt;

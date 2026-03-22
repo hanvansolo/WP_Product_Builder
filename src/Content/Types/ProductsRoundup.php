@@ -88,6 +88,8 @@ class ProductsRoundup implements ContentTypeInterface {
         }
 
         $prompt .= "- End with a brief conclusion summarizing the top picks\n";
+        $prompt .= "- Reference what reviewers and publications have said about these products, citing sources naturally\n";
+        $prompt .= "- IMPORTANT: Use only standard square brackets [ ] for placeholders. Never use special characters like 【】 or ［］\n";
         $prompt .= "\nWrite the roundup article now:";
 
         return $prompt;

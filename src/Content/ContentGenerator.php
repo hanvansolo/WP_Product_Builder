@@ -192,6 +192,12 @@ class ContentGenerator {
             ]);
         }
 
+        // Set featured image from first product
+        $products = json_decode($history['products_json'], true);
+        if (!empty($products[0]['image_url'])) {
+            $this->setFeaturedImage($postId, $products[0]['image_url'], $history['title']);
+        }
+
         // Update history with post ID
         $this->contentRepo->update($historyId, [
             'post_id' => $postId,
@@ -253,6 +259,12 @@ class ContentGenerator {
             },
             $content
         );
+
+        // Clean up any remaining unusual bracket characters Claude might output
+        $content = str_replace(['【', '】', '［', '］'], ['[', ']', '[', ']'], $content);
+
+        // Remove any leftover unreplaced placeholders
+        $content = preg_replace('/\[\s*(?:PRODUCT[_\s-]*BOX|BUY[_\s-]*BUTTON|PRICE)[_\s-]*\d+\s*\]/iu', '', $content);
 
         // If no product boxes were inserted, add them at the beginning for each product
         if (!str_contains($content, 'wpb-product-box')) {
@@ -445,6 +457,35 @@ class ContentGenerator {
             ];
         }
         return $types;
+    }
+
+    /**
+     * Set featured image for a post from a URL
+     */
+    private function setFeaturedImage(int $postId, string $imageUrl, string $title): void {
+        if (empty($imageUrl)) {
+            return;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        $tmpFile = download_url($imageUrl);
+        if (is_wp_error($tmpFile)) {
+            return;
+        }
+
+        $fileArray = [
+            'name' => sanitize_file_name($title) . '.jpg',
+            'tmp_name' => $tmpFile,
+        ];
+
+        $attachmentId = media_handle_sideload($fileArray, $postId, $title);
+
+        if (!is_wp_error($attachmentId)) {
+            set_post_thumbnail($postId, $attachmentId);
+        }
     }
 
     /**

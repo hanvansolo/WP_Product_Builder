@@ -73,6 +73,11 @@ class ProductReview implements ContentTypeInterface {
         $prompt .= "- {$length}\n";
         $prompt .= "- Format output in HTML with proper heading tags (h2, h3)\n";
         $prompt .= "- Include an engaging introduction\n";
+        $prompt .= "- Research what real reviewers and publications have said about this product\n";
+        $prompt .= "- Include quotes and opinions from multiple sources, attributing them naturally\n";
+        $prompt .= "- Use phrases like: 'According to TechRadar...', 'Reviewers at Wirecutter noted that...', 'CNET's review highlights...', 'Many Amazon reviewers praise...'\n";
+        $prompt .= "- Synthesize opinions from different sources to give a balanced, well-rounded perspective\n";
+        $prompt .= "- Cite at least 3-4 different review sources throughout the article\n";
 
         if ($options['include_pros_cons'] ?? true) {
             $prompt .= "- Include a Pros and Cons section with bullet points\n";
@@ -90,9 +95,10 @@ class ProductReview implements ContentTypeInterface {
             $prompt .= "- Include a brief buying guide section\n";
         }
 
-        $prompt .= "- IMPORTANT: Start the review with [PRODUCT_BOX_0] placeholder - this will display the product image, price, and buy button\n";
-        $prompt .= "- Add [BUY_BUTTON_0] placeholder at the end of the review for a final call-to-action\n";
-        $prompt .= "\nWrite the review now (remember to start with [PRODUCT_BOX_0]):";
+        $prompt .= "- Place [PRODUCT_BOX_0] near the top of the review to display the product image, price, and buy button\n";
+        $prompt .= "- Place [BUY_BUTTON_0] at the end of the review for a final call-to-action\n";
+        $prompt .= "- IMPORTANT: Use only standard square brackets [ ] for placeholders. Never use 【】 or ［］\n";
+        $prompt .= "\nWrite the review now:";
 
         return $prompt;
     }
