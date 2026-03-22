@@ -4,6 +4,11 @@
 (function($) {
     'use strict';
 
+    // Chrome Extension ID - UPDATE THIS after publishing the extension
+    var NITO_EXTENSION_ID = window.wpbAdmin && window.wpbAdmin.extensionId
+        ? window.wpbAdmin.extensionId
+        : '';
+
     var WPBGenerator = {
         currentStep: 1,
         maxStep: 5,
@@ -12,12 +17,37 @@
         selectedProducts: [],
         generatedContent: null,
         historyId: null,
+        extensionInstalled: false,
 
         /**
          * Initialize generator
          */
         init: function() {
             this.bindEvents();
+            this.detectExtension();
+        },
+
+        /**
+         * Detect if Chrome extension is installed
+         */
+        detectExtension: function() {
+            if (!NITO_EXTENSION_ID || typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+                return;
+            }
+
+            try {
+                chrome.runtime.sendMessage(NITO_EXTENSION_ID, { action: 'ping' }, function(response) {
+                    if (chrome.runtime.lastError) {
+                        return;
+                    }
+                    if (response && response.installed) {
+                        WPBGenerator.extensionInstalled = true;
+                        console.log('Nito extension detected v' + response.version);
+                    }
+                });
+            } catch (e) {
+                // Extension not installed
+            }
         },
 
         /**
@@ -107,13 +137,58 @@
             }
 
             var $button = $('#wpb-search-btn');
-            var $results = $('#wpb-search-results');
-
             $button.prop('disabled', true).html('<span class="wpb-loading"></span>');
+
+            // For Amazon: try Chrome extension first, then server fallback
+            if (this.selectedNetwork === 'amazon' && this.extensionInstalled && NITO_EXTENSION_ID) {
+                this.searchViaExtension(query);
+                return;
+            }
+
+            // Server-side search (works for CJ, Awin, and Amazon with PA-API)
+            this.searchViaServer(query);
+        },
+
+        /**
+         * Search via Chrome extension (Amazon only)
+         */
+        searchViaExtension: function(query) {
+            var $button = $('#wpb-search-btn');
+            var marketplace = wpbAdmin.settings && wpbAdmin.settings.amazon_marketplace
+                ? wpbAdmin.settings.amazon_marketplace : 'UK';
+
+            chrome.runtime.sendMessage(NITO_EXTENSION_ID, {
+                action: 'search',
+                query: query,
+                marketplace: marketplace
+            }, function(response) {
+                $button.prop('disabled', false).html('<span class="dashicons dashicons-search"></span> Search');
+
+                if (chrome.runtime.lastError) {
+                    // Extension error - fall back to server
+                    WPBGenerator.searchViaServer(query);
+                    return;
+                }
+
+                if (response && response.success && response.products && response.products.length > 0) {
+                    WPBGenerator.displaySearchResults(response.products, null, null);
+                } else {
+                    // Extension returned no results - fall back to server
+                    WPBGenerator.searchViaServer(query);
+                }
+            });
+        },
+
+        /**
+         * Search via server API
+         */
+        searchViaServer: function(query) {
+            var $button = $('#wpb-search-btn');
 
             $.ajax({
                 url: wpbAdmin.apiUrl + '/products/search',
                 method: 'GET',
+                timeout: 30000,
                 beforeSend: function(xhr) {
                     xhr.setRequestHeader('X-WP-Nonce', wpbAdmin.nonce);
                 },

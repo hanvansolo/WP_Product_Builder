@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "Nito Product Builder - Amazon Search",
+  "version": "1.0.0",
+  "description": "Enables Amazon product search from the Nito Product Builder WordPress plugin without requiring PA-API keys.",
+  "permissions": ["activeTab"],
+  "host_permissions": [
+    "https://www.amazon.com/*",
+    "https://www.amazon.co.uk/*",
+    "https://www.amazon.de/*",
+    "https://www.amazon.fr/*",
+    "https://www.amazon.ca/*",
+    "https://www.amazon.co.jp/*",
+    "https://www.amazon.it/*",
+    "https://www.amazon.es/*",
+    "https://www.amazon.com.au/*"
+  ],
+  "externally_connectable": {
+    "matches": ["*://*/*"]
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.amazon.com/s*",
+        "https://www.amazon.co.uk/s*",
+        "https://www.amazon.de/s*",
+        "https://www.amazon.fr/s*",
+        "https://www.amazon.ca/s*",
+        "https://www.amazon.co.jp/s*",
+        "https://www.amazon.it/s*",
+        "https://www.amazon.es/s*",
+        "https://www.amazon.com.au/s*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}

@@ -43,6 +43,7 @@
                 amazon_secret_key: val('amazon_secret_key') || null,
                 amazon_partner_tag: val('amazon_partner_tag'),
                 amazon_marketplace: val('amazon_marketplace'),
+                chrome_extension_id: val('chrome_extension_id'),
                 cj_api_key: val('cj_api_key') || null,
                 cj_website_id: val('cj_website_id'),
                 awin_api_key: val('awin_api_key') || null,

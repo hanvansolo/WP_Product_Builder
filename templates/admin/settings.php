@@ -196,6 +196,28 @@ $is_welcome = isset($_GET['welcome']) && $_GET['welcome'] === '1';
                         </select>
                     </td>
                 </tr>
+                <tr>
+                    <th scope="row">
+                        <label for="chrome_extension_id"><?php esc_html_e('Chrome Extension ID', 'wp-product-builder'); ?></label>
+                    </th>
+                    <td>
+                        <input type="text"
+                               id="chrome_extension_id"
+                               name="chrome_extension_id"
+                               class="regular-text"
+                               value="<?php echo esc_attr($settings['chrome_extension_id'] ?? ''); ?>"
+                               placeholder="<?php esc_attr_e('Extension ID from chrome://extensions', 'wp-product-builder'); ?>">
+                        <span id="wpb-extension-status"></span>
+                        <p class="description">
+                            <?php esc_html_e('Install the Nito Chrome Extension for Amazon search without PA-API. Enter the Extension ID after installing.', 'wp-product-builder'); ?>
+                            <br>
+                            <a href="<?php echo esc_url(WPB_PLUGIN_URL . 'chrome-extension/'); ?>" target="_blank">
+                                <?php esc_html_e('Download Extension', 'wp-product-builder'); ?>
+                            </a>
+                            <?php esc_html_e('then load it via chrome://extensions (Developer mode > Load unpacked).', 'wp-product-builder'); ?>
+                        </p>
+                    </td>
+                </tr>
             </table>
         </div>
 
